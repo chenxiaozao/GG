@@ -1,0 +1,27 @@
+# Only frontend/backend and essential repository metadata are published.
+/*
+!/web/
+!/server/
+!/.github/
+!/.gitignore
+!/README.md
+**/node_modules/
+**/dist/
+**/target/
+**/data/
+**/uploads/
+**/tmp/
+**/.env*
+!**/.env.example
+**/*.log
+**/*.pid
+**/*.tsbuildinfo
+**/*.mv.db
+**/*.trace.db
+**/*.pem
+**/*.key
+**/.DS_Store
+**/.idea/
+**/.vscode/
+**/test-results/
+**/playwright-report/

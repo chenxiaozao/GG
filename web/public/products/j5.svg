@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="520" viewBox="0 0 720 520">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0d1630"/><stop offset="1" stop-color="#15a37d"/></linearGradient></defs>
+<rect width="720" height="520" rx="36" fill="url(#g)"/>
+<circle cx="540" cy="180" r="105" fill="#fff" opacity=".16"/><circle cx="540" cy="180" r="68" fill="#fff" opacity=".12"/>
+<rect x="72" y="92" width="92" height="10" rx="5" fill="#70e1f5"/>
+<text x="72" y="205" fill="white" font-family="Arial,sans-serif" font-size="72" font-weight="700">G20S</text>
+<text x="76" y="260" fill="#dce8ff" font-family="Arial,'PingFang SC',sans-serif" font-size="30">扫拖机器人</text>
+<path d="M470 335h140M500 305v60M580 305v60" stroke="white" stroke-width="18" stroke-linecap="round" opacity=".75"/>
+<circle cx="500" cy="390" r="24" fill="#70e1f5"/><circle cx="580" cy="390" r="24" fill="#70e1f5"/>
+</svg>

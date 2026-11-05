@@ -1,0 +1,37 @@
+{
+  "name": "robotmall-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "audit:responsive": "node scripts/responsive-audit.mjs",
+    "audit:service-ui": "node scripts/service-ui-audit.mjs",
+    "audit:layouts": "node scripts/layout-audit.mjs",
+    "audit:ai-live": "node scripts/ai-live-audit.mjs",
+    "audit:ai-ui": "node scripts/ai-ui-audit.mjs",
+    "audit:catalog": "node scripts/catalog-audit.mjs",
+    "audit:catalog-media": "node scripts/catalog-media-audit.mjs",
+    "audit:theme-contrast": "node scripts/theme-contrast-audit.mjs",
+    "audit:experience": "node scripts/experience-audit.mjs",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@province-city-china/area": "^8.5.8",
+    "@province-city-china/city": "^8.5.8",
+    "@province-city-china/province": "^8.5.8",
+    "axios": "^1.8.4",
+    "pinia": "^3.0.1",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.3",
+    "playwright-core": "^1.55.0",
+    "prettier": "^3.9.5",
+    "typescript": "~5.7.3",
+    "vite": "^6.2.4",
+    "vue-tsc": "^2.2.8"
+  }
+}

@@ -1,0 +1,465 @@
+/* Shared navigation and content geometry, independent of page and theme. */
+.app-shell {
+  --chrome-height: 80px;
+  --ds-radius-sm: 12px;
+  --ds-radius-md: 18px;
+  --ds-radius-lg: 24px;
+}
+.app-shell .site-chrome {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.app-shell .site-header {
+  min-height: var(--chrome-height);
+}
+.app-shell .header-inner {
+  width: calc(100% - 48px);
+  max-width: 1560px;
+  min-height: var(--chrome-height);
+  gap: 24px;
+}
+.app-shell .main-nav {
+  gap: 8px;
+}
+.workspace-layout {
+  display: grid;
+  grid-template-columns: 212px minmax(0, 1fr);
+  gap: 32px;
+  width: calc(100% - 48px);
+  max-width: 1560px;
+  margin: 0 auto;
+  align-items: start;
+}
+.account-navigation {
+  position: sticky;
+  top: calc(var(--chrome-height) + 20px);
+  max-height: calc(100dvh - var(--chrome-height) - 40px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  margin-top: 28px;
+  padding: 16px 10px;
+  border: 1px solid var(--ds-line);
+  border-radius: 16px;
+  background: var(--ds-surface);
+}
+.account-nav-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px 12px;
+  color: var(--ds-ink);
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--ds-line);
+}
+.account-navigation h2 {
+  margin: 20px 12px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ds-muted);
+}
+.account-navigation nav a {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-height: 42px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  color: var(--ds-muted);
+  font-size: 14px;
+  text-decoration: none;
+  transition:
+    background 0.18s,
+    color 0.18s;
+}
+.account-navigation nav a svg {
+  flex-shrink: 0;
+}
+.account-navigation nav a:hover {
+  background: var(--ds-surface-soft);
+  color: var(--ds-ink);
+}
+.account-navigation nav a.is-active {
+  color: var(--ds-accent-ink);
+  background: color-mix(in srgb, var(--ds-accent) 10%, var(--ds-surface));
+  font-weight: 600;
+}
+.account-navigation a:focus-visible,
+.account-menu-toggle:focus-visible {
+  outline: 2px solid var(--ds-accent);
+  outline-offset: 2px;
+}
+.account-navigation .account-admin-link {
+  display: block;
+  margin: 18px 12px 4px;
+  font-size: 12px;
+  color: var(--ds-accent-ink);
+}
+.workspace-content {
+  min-width: 0;
+}
+@media (min-width: 901px) {
+  .account-navigation {
+    position: fixed;
+    top: calc(var(--chrome-height) + 28px);
+    width: 212px;
+    box-sizing: border-box;
+    margin-top: 0;
+  }
+  .workspace-content {
+    grid-column: 2;
+  }
+}
+.app-shell .workspace-content .container {
+  width: 100%;
+  max-width: 1180px;
+  margin-inline: auto;
+}
+html[data-layout] .app-shell .workspace-content .profile-layout {
+  display: block;
+  grid-template-columns: minmax(0, 1fr);
+}
+.app-shell .workspace-content .profile-hero {
+  min-height: 120px;
+  padding: 24px 28px;
+  gap: 20px;
+}
+.app-shell .workspace-content .profile-hero h1 {
+  font-size: clamp(24px, 2.2vw, 32px);
+}
+.app-shell .workspace-content .profile-hero p {
+  font-size: 14px;
+}
+.app-shell .workspace-content .profile-stats > a {
+  padding: 20px;
+}
+.app-shell .workspace-content .profile-section {
+  padding: 0;
+}
+/* Footer shares the content column, never the fixed account rail. */
+.app-shell .site-footer {
+  width: calc(min(1560px, calc(100% - 48px)) - 244px);
+  margin: 32px 0 24px calc((100% - min(1560px, calc(100% - 48px))) / 2 + 244px);
+  border: 1px solid var(--ds-line);
+  border-radius: 24px;
+  background: var(--ds-surface);
+  color: var(--ds-ink);
+  overflow: hidden;
+}
+.app-shell .site-footer > div {
+  width: auto;
+  padding: 28px;
+  gap: 28px;
+  grid-template-columns: 1.6fr 1fr 1fr;
+}
+.app-shell .site-footer :is(b, a) {
+  color: var(--ds-ink);
+}
+.app-shell .site-footer p {
+  color: var(--ds-muted);
+  font-size: 12px;
+}
+.app-shell .site-footer > p {
+  border-top: 1px solid var(--ds-line);
+  padding: 14px 128px 14px 16px;
+}
+.app-shell .back-to-top {
+  position: fixed;
+  inset: auto 24px 24px auto;
+  z-index: 105;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: auto;
+  height: 44px;
+  min-width: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.app-shell .back-to-top svg {
+  transform: rotate(-90deg);
+  flex-shrink: 0;
+}
+.app-shell .back-to-top small {
+  font-size: 12px;
+}
+.app-shell
+  :is(.btn, .sku-list button, .page-tabs button, .advisor-mode-nav button) {
+  border-radius: 14px;
+}
+.app-shell
+  .workspace-content
+  :is(
+    .product-detail,
+    .cart-list,
+    .cart-summary,
+    .advisor-chat,
+    .profile-main,
+    .profile-hero
+  ) {
+  border-radius: 24px;
+}
+.app-shell .workspace-content .quantity-stepper {
+  border-radius: 999px;
+  height: 40px;
+  align-items: stretch;
+}
+.app-shell .workspace-content .quantity-stepper > :is(button, input) {
+  height: 38px;
+  min-height: 38px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  line-height: normal;
+}
+.app-shell .workspace-content .quantity-stepper > button {
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+}
+.app-shell .workspace-content .quantity-stepper > input {
+  background: var(--ds-surface);
+  appearance: textfield;
+  font-size: 14px;
+}
+.app-shell .workspace-content .quantity-stepper > button:focus-visible {
+  outline: 2px solid var(--ds-accent);
+  outline-offset: -3px;
+}
+.app-shell .workspace-content .quantity-stepper > button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.app-shell .workspace-content .home-search-v3 {
+  border-radius: 999px;
+  padding: 5px;
+}
+.app-shell .workspace-content .home-search-v3 .btn {
+  border-radius: 999px;
+}
+.app-shell .workspace-content .avatar-editor {
+  padding: 18px;
+  border-radius: 18px;
+}
+.app-shell .workspace-content .avatar-editor-preview {
+  border-radius: 50%;
+  overflow: hidden;
+}
+.account-menu-toggle,
+.account-nav-close,
+.account-menu-backdrop {
+  display: none;
+}
+/* Search uses one shared focus ring; the input is not a second box. */
+.app-shell
+  .workspace-content
+  :is(.home-search-v3, .catalog-search):focus-within {
+  border-color: var(--ds-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ds-accent) 14%, transparent);
+}
+.app-shell .workspace-content :is(.home-search-v3, .catalog-search) input,
+.app-shell
+  .workspace-content
+  :is(.home-search-v3, .catalog-search)
+  input:focus {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+  background: transparent;
+  border-radius: 0;
+}
+.app-shell .workspace-content .cart-row {
+  grid-template-columns: 76px minmax(0, 1fr) 112px;
+  gap: 16px;
+  padding: 20px;
+}
+.app-shell .workspace-content .cart-row img {
+  width: 76px;
+  height: 76px;
+}
+.app-shell .quantity-stepper {
+  width: 98px;
+  box-sizing: border-box;
+  grid-template-columns: 28px 40px 28px;
+  gap: 0;
+}
+.app-shell .quantity-stepper > button {
+  width: 28px;
+  min-width: 0;
+  margin: 0;
+  border-radius: 0;
+}
+.app-shell .quantity-stepper > input {
+  width: 40px;
+  min-width: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+.app-shell .advisor-mode-nav {
+  top: var(--chrome-height);
+}
+.app-shell
+  :is(.compare-picker-head, .orders-page > .page-tabs, .admin-page .page-tabs) {
+  top: var(--chrome-height);
+}
+.app-shell
+  :is(
+    .filter-sidebar,
+    .cart-summary,
+    .trade-result-panel,
+    .product-accessory-card
+  ) {
+  top: calc(var(--chrome-height) + 20px);
+}
+@media (max-width: 1250px) and (min-width: 901px) {
+  .app-shell .header-inner {
+    gap: 16px;
+  }
+  .app-shell .main-nav {
+    gap: 0;
+  }
+  .app-shell .main-nav a {
+    padding-inline: 9px;
+    font-size: 14px;
+  }
+  .app-shell .header-actions {
+    gap: 12px;
+    font-size: 13px;
+  }
+  .workspace-layout {
+    grid-template-columns: 190px minmax(0, 1fr);
+    gap: 24px;
+  }
+  .account-navigation {
+    width: 190px;
+  }
+  .app-shell .site-footer {
+    width: calc(100% - 262px);
+    margin-left: 238px;
+  }
+}
+@media (max-width: 900px) {
+  .app-shell {
+    --chrome-height: 64px;
+  }
+  .app-shell .header-inner {
+    width: calc(100% - 32px);
+  }
+  .app-shell .main-nav {
+    display: none;
+  }
+  .app-shell .mobile-menu {
+    display: block;
+  }
+  .workspace-layout {
+    display: block;
+    width: calc(100% - 32px);
+  }
+  .app-shell .site-footer {
+    width: calc(100% - 32px);
+    margin: 32px 16px 24px;
+  }
+  .app-shell .site-footer > div {
+    grid-template-columns: 1fr 1fr;
+    padding: 24px;
+  }
+  .app-shell .site-footer > div > div:first-child {
+    grid-column: 1 / -1;
+  }
+  .app-shell .back-to-top {
+    right: 14px;
+    bottom: 14px;
+    padding: 0 12px;
+  }
+  .account-menu-toggle {
+    display: flex;
+    position: sticky;
+    top: var(--chrome-height);
+    z-index: 90;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 16px;
+    background: var(--ds-surface);
+    color: var(--ds-ink);
+    border: 0;
+    border-bottom: 1px solid var(--ds-line);
+    font-size: 13px;
+  }
+  .account-navigation {
+    display: none;
+    position: fixed;
+    inset: calc(var(--chrome-height) + 40px) auto 16px 12px;
+    width: 232px;
+    margin: 0;
+    max-height: none;
+    z-index: 120;
+    box-shadow: var(--ds-shadow-md);
+  }
+  .account-navigation.is-open {
+    display: block;
+  }
+  .account-nav-close {
+    display: inline-flex;
+    padding: 5px;
+    background: transparent;
+    border: 0;
+    color: var(--ds-muted);
+  }
+  .account-menu-backdrop {
+    display: block;
+    position: fixed;
+    inset: calc(var(--chrome-height) + 40px) 0 0;
+    z-index: 110;
+    border: 0;
+    background: rgba(0, 0, 0, 0.24);
+  }
+  .app-shell .advisor-mode-nav {
+    top: calc(var(--chrome-height) + 40px);
+  }
+  .app-shell
+    :is(
+      .compare-picker-head,
+      .orders-page > .page-tabs,
+      .admin-page .page-tabs
+    ) {
+    top: calc(var(--chrome-height) + 40px);
+  }
+  .app-shell .workspace-content .profile-hero {
+    padding: 20px;
+  }
+}
+@media (max-width: 600px) {
+  .workspace-layout {
+    width: calc(100% - 24px);
+  }
+  .app-shell .workspace-content .cart-row {
+    grid-template-columns: 60px minmax(0, 1fr);
+    gap: 12px;
+    padding: 16px;
+  }
+  .app-shell .workspace-content .cart-row img {
+    width: 60px;
+    height: 60px;
+  }
+  .app-shell .workspace-content .cart-controls {
+    grid-column: 2;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .app-shell .workspace-content .profile-hero {
+    flex-wrap: wrap;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .account-navigation nav a {
+    transition: none;
+  }
+}

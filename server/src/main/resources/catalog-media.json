@@ -1,0 +1,74 @@
+[
+  {
+    "name": "大疆 Mini 4 Pro",
+    "image": "/products/real/dji-mini4-pro-official.png",
+    "sourceUrl": "https://www.dji.com/cn/mini-4-pro",
+    "imageSourceUrl": "https://www-cdn.djiits.com/cms/uploads/892e39b4b76dc5a83b267ed12ce69b97@374*374.png",
+    "region": "中国大陆官网",
+    "checkedAt": "2026-09-17"
+  },
+  {
+    "name": "石头 Qrevo S",
+    "image": "/products/real/roborock-qrevo-s-official.jpg",
+    "sourceUrl": "https://us.roborock.com/products/roborock-qrevo-s-vacuum",
+    "imageSourceUrl": "https://cdn.shopify.com/s/files/1/0082/3666/2902/files/4fe40f089696834c4906303a743d01c5_58a9a7f3-bae0-4b0f-8d78-2f4a12a7d86b.jpg?v=1725031905",
+    "region": "美国官网",
+    "checkedAt": "2026-09-17"
+  },
+  {
+    "name": "石头 Qrevo Curv",
+    "image": "/products/real/roborock-qrevo-curv-official.jpg",
+    "sourceUrl": "https://us.roborock.com/products/roborock-qrevo-curv",
+    "imageSourceUrl": "https://cdn.shopify.com/s/files/1/0082/3666/2902/files/Vivian_Set_40358a83-41aa-42ec-9f29-daa6d45934d8.jpg?v=1757903172",
+    "region": "美国官网",
+    "checkedAt": "2026-09-17"
+  },
+  {
+    "name": "石头 Saros 10R",
+    "image": "/products/real/roborock-saros-10r-official.jpg",
+    "sourceUrl": "https://us.roborock.com/products/roborock-saros-10r",
+    "imageSourceUrl": "https://cdn.shopify.com/s/files/1/0082/3666/2902/files/Saros_10R_Set_1046eb16-958d-4c72-9327-1d61ffaee2d1.jpg?v=1763646793",
+    "region": "美国官网",
+    "checkedAt": "2026-09-17"
+  },
+  {
+    "name": "追觅 X50 Ultra",
+    "image": "/products/real/dreame-x50-ultra-official.webp",
+    "sourceUrl": "https://www.dreametech.com/products/x50-ultra-robot-vacuum",
+    "imageSourceUrl": "https://cdn.shopify.com/s/files/1/0553/1320/3405/files/X50-W_1.webp?v=1767170718",
+    "region": "美国官网",
+    "checkedAt": "2026-09-17"
+  },
+  {
+    "name": "追觅 L40 Ultra Gen 2",
+    "image": "/products/real/dreame-l40-gen2-official.webp",
+    "sourceUrl": "https://www.dreametech.com/products/l40-ultra-gen2-robot-vacuum",
+    "imageSourceUrl": "https://cdn.shopify.com/s/files/1/0553/1320/3405/files/L40_Ultra_Gen2-white.webp?v=1765353165",
+    "region": "美国官网",
+    "checkedAt": "2026-09-17"
+  },
+  {
+    "name": "Mammotion YUKA mini",
+    "image": "/products/real/mammotion-yuka-mini-official.jpg",
+    "sourceUrl": "https://us.mammotion.com/products/yuka-mini-robot-lawn-mower",
+    "imageSourceUrl": "https://cdn.shopify.com/s/files/1/0744/3310/2122/files/product_pic-YUKA_mini_MUSE.jpg?v=1758783512",
+    "region": "美国官网，H Version",
+    "checkedAt": "2026-09-17"
+  },
+  {
+    "name": "科沃斯 X5 PRO OMNI",
+    "image": "/products/real/ecovacs-x5-pro-official.png",
+    "sourceUrl": "https://www.ecovacs.com/us/shop/deebot-robotic-vacuum-cleaner/deebot-x5-pro-omni",
+    "imageSourceUrl": "https://site-static.ecovacs.com/upload/us/image/product/2025/09/18/064153_5024$id-x5-pro-omni-black-920x920.png",
+    "region": "美国官网",
+    "checkedAt": "2026-09-17"
+  },
+  {
+    "name": "科沃斯 DEEBOT T50 PRO OMNI",
+    "image": "/products/real/ecovacs-t50-pro-official.png",
+    "sourceUrl": "https://www.ecovacs.com/ca/shop/deebot-robotic-vacuum-cleaner/deebot-t50-pro-omni",
+    "imageSourceUrl": "https://site-static.ecovacs.com/upload/ca/image/product/2025/09/18/085057_4103$id-t50-pro-omni-black-920x920.png",
+    "region": "加拿大官网",
+    "checkedAt": "2026-09-17"
+  }
+]

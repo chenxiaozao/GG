@@ -1,0 +1,74 @@
+/* Home discovery and personal space: scoped so transaction pages keep their behavior. */
+.header-user-avatar { width: 28px; height: 28px; object-fit: cover; border-radius: 50%; }
+.experience-shell .account-link { gap: 8px; }
+.shopping-workspace .workspace-layout { grid-template-columns: minmax(0, 1fr); max-width: 1280px; }
+.shopping-workspace .workspace-content { grid-column: 1; }
+.shopping-workspace .site-footer { width: min(1280px, calc(100% - 48px)); margin: 48px auto 24px; }
+.shopping-workspace .account-navigation { display: none; }
+.shopping-workspace .account-navigation.is-open { display: block; position: fixed; left: 20px; top: 100px; width: 250px; z-index: 210; max-height: calc(100dvh - 120px); }
+.shopping-workspace .account-nav-close { display: inline-flex; }
+.shopping-workspace .account-menu-toggle { display: inline-flex; position: fixed; left: 12px; bottom: 24px; top: auto; z-index: 150; width: auto; padding: 12px 16px; border-radius: 24px; }
+.experience-shell .account-menu-backdrop { position: fixed; inset: 0; display: block; z-index: 200; background: rgb(0 0 0 / 30%); border: 0; }
+.discovery-hero { display: grid; grid-template-columns: .85fr 1.15fr; gap: 64px; align-items: center; padding: 64px 24px 48px; }
+.discovery-label { color: var(--ds-accent-ink); font-size: 14px; font-weight: 600; }
+.discovery-intro h1 { margin: 22px 0; font-size: clamp(34px, 4vw, 52px); line-height: 1.22; letter-spacing: -1.5px; color: var(--ds-ink); }
+.discovery-intro p { max-width: 360px; line-height: 1.9; color: var(--ds-muted); font-size: 16px; }
+.discovery-intro > a { display: inline-block; margin-top: 24px; color: var(--ds-ink); font-size: 14px; text-decoration: underline; text-underline-offset: 5px; }
+.need-composer { padding: 28px; background: var(--ds-surface); border: 1px solid var(--ds-line); border-radius: 28px; box-shadow: 0 16px 48px rgb(20 35 45 / 5%); }
+.need-composer label { display: block; font-size: 21px; font-weight: 600; margin-bottom: 18px; color: var(--ds-ink); }
+.need-composer textarea { display: block; width: 100%; min-height: 130px; resize: vertical; padding: 16px; border: 1px solid var(--ds-line); background: var(--ds-surface-soft); border-radius: 16px; color: var(--ds-ink); font: inherit; line-height: 1.7; box-sizing: border-box; }
+.experience-shell .need-composer textarea:focus-visible { outline: none; border-color: var(--ds-accent); box-shadow: 0 0 0 1px var(--ds-accent); }
+.need-scenarios { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 24px; }
+.need-scenarios button { background: transparent; color: var(--ds-muted); border: 1px solid var(--ds-line); border-radius: 16px; padding: 8px 12px; font: inherit; font-size: 12px; cursor: pointer; text-align: left; }
+.need-scenarios button:hover { background: var(--ds-surface-soft); color: var(--ds-ink); }
+.need-submit { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; }
+.need-submit small { color: var(--ds-muted); font-size: 11px; }
+.need-submit .btn { display: inline-flex; align-items: center; gap: 12px; border-radius: 16px; }
+.home-browse-bar { display: flex; align-items: center; gap: 24px; padding: 20px 24px; border-block: 1px solid var(--ds-line); margin-bottom: 24px; font-size: 14px; }
+.home-browse-bar form { display: flex; align-items: center; gap: 12px; max-width: 460px; flex: 1; }
+.home-browse-bar input { background: transparent; border: 0; min-width: 0; flex: 1; padding: 12px 4px; color: var(--ds-ink); font: inherit; }
+.home-browse-bar button { background: transparent; border: 0; color: var(--ds-accent-ink); font: inherit; padding: 12px; cursor: pointer; }
+.home-browse-bar > a { color: var(--ds-muted); white-space: nowrap; }
+.experience-shell .workspace-content .profile-hero { margin-top: 28px; padding: 40px 32px; border-radius: 24px; min-height: 180px; background: color-mix(in srgb, var(--ds-accent) 8%, var(--ds-surface)); border: 1px solid var(--ds-line); }
+.experience-shell .profile-hero::after { display: none; }
+.experience-shell .profile-avatar { width: 88px; height: 88px; min-width: 88px; border-radius: 50%; background: var(--ds-surface); color: var(--ds-accent-ink); border: 4px solid var(--ds-surface); }
+.experience-shell .profile-avatar img { border-radius: 50%; width: 100%; height: 100%; object-fit: cover; }
+.experience-shell .profile-eyebrow { letter-spacing: 0; font-size: 14px; color: var(--ds-accent-ink); }
+.experience-shell .profile-security { display: inline-flex; border-radius: 18px; white-space: nowrap; }
+.experience-shell .account-menu-toggle { background: var(--ds-surface); color: var(--ds-ink); border: 1px solid var(--ds-line); gap: 8px; align-items: center; font: inherit; box-shadow: 0 4px 16px rgb(20 35 45 / 8%); }
+.space-continuation { padding: 32px 0; border-bottom: 1px solid var(--ds-line); margin-bottom: 32px; }
+.space-continuation > div > span { font-size: 13px; color: var(--ds-muted); }
+.space-continuation h2 { margin: 10px 0; font-size: 25px; color: var(--ds-ink); }
+.space-continuation p { color: var(--ds-muted); font-size: 14px; line-height: 1.8; }
+.space-continuation nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 24px; gap: 16px; }
+.space-continuation nav a { display: grid; grid-template-columns: 28px 1fr; align-items: center; gap: 10px; padding: 22px; border: 1px solid var(--ds-line); border-radius: 20px; background: var(--ds-surface); color: var(--ds-ink); transition: transform .18s, border-color .18s; }
+.space-continuation nav small { grid-column: 2; color: var(--ds-muted); }
+.space-continuation nav a:hover { transform: translateY(-3px); border-color: var(--ds-accent); }
+.experience-shell .profile-stats { gap: 0; border-block: 1px solid var(--ds-line); }
+.experience-shell .workspace-content .profile-stats > a { border-radius: 0; background: transparent; padding: 22px 16px; box-shadow: none; }
+.experience-shell .profile-section-head > div > span { display: none; }
+@media (max-width: 1100px) {
+  .discovery-hero { gap: 28px; padding-inline: 0; }
+  .space-continuation nav a { padding: 16px; }
+}
+@media (max-width: 900px) {
+  .discovery-hero { grid-template-columns: 1fr; padding-top: 28px; gap: 28px; }
+  .discovery-intro h1 br { display: none; }
+  .discovery-intro p { max-width: 620px; }
+  .discovery-intro > a { margin-top: 8px; }
+  .shopping-workspace .account-navigation.is-open { top: 90px; }
+  .experience-shell .account-navigation.is-open { z-index: 210; }
+  .home-browse-bar { padding-inline: 0; flex-wrap: wrap; gap: 10px 20px; }
+  .home-browse-bar form { flex-basis: 100%; max-width: none; }
+}
+@media (max-width: 600px) {
+  .need-composer { padding: 20px; border-radius: 22px; }
+  .need-composer label { font-size: 18px; }
+  .need-submit .btn { width: 100%; justify-content: center; }
+  .space-continuation nav { grid-template-columns: 1fr; gap: 10px; }
+  .experience-shell .workspace-content .profile-hero { padding: 24px 20px; flex-wrap: wrap; }
+  .experience-shell .profile-avatar { width: 64px; height: 64px; min-width: 64px; }
+  .experience-shell .workspace-content .profile-hero h1 { font-size: 23px; }
+  .shopping-workspace .site-footer { width: calc(100% - 24px); }
+}
+@media (prefers-reduced-motion: reduce) { .space-continuation nav a { transition: none; } }

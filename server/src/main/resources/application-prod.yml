@@ -1,0 +1,19 @@
+server:
+  port: ${PORT:8080}
+  error:
+    include-message: never
+    include-stacktrace: never
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: ${DB_DRIVER:com.mysql.cj.jdbc.Driver}
+  h2:
+    console:
+      enabled: false
+app:
+  demo-users: false
+  avatar-dir: ${AVATAR_DIR:/app/data/avatars}
+  allowed-origins: ${ALLOWED_ORIGINS:https://chenxiaozao.github.io}
+  bootstrap-admin-password: ${BOOTSTRAP_ADMIN_PASSWORD:}
