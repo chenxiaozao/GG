@@ -9,6 +9,9 @@
 **/dist/
 **/target/
 **/data/
+# Address-selection source is code, not a runtime database or user data.
+!/web/src/data/
+!/web/src/data/chinaRegionsFull.ts
 **/uploads/
 **/tmp/
 **/.env*
