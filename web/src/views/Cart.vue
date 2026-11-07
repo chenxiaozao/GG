@@ -211,7 +211,8 @@ async function createOrder() {
 }
 
 function imageFallback(event: Event) {
-  (event.target as HTMLImageElement).src = "/products/placeholder.svg";
+  const image = event.target as HTMLImageElement;
+  if (!image.src.endsWith('/products/placeholder.svg')) image.src = resourceUrl();
 }
 
 onMounted(() => {

@@ -11,6 +11,7 @@ const groups = [
     name: "我的账户",
     items: [
       { name: "我的空间", to: "/profile", icon: "user" },
+      { name: "选购计划", to: "/profile#plans", icon: "orders" },
       { name: "订单中心", to: "/orders", icon: "orders" },
       { name: "售后服务", to: "/after-sales", icon: "settings" },
       { name: "我的收藏", to: "/favorites", icon: "heart" },
@@ -25,6 +26,7 @@ const groups = [
       { name: "个人资料", to: "/profile#account", icon: "user" },
       { name: "收货地址", to: "/profile#addresses", icon: "location" },
       { name: "账号安全", to: "/profile#security", icon: "lock" },
+      { name: "选购偏好", to: "/profile#preferences", icon: "settings" },
       { name: "界面与主题", to: "/profile#appearance", icon: "palette" },
     ],
   },

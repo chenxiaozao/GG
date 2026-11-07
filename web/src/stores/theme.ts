@@ -15,8 +15,8 @@ type ThemePreference = {
 const presets: Record<Exclude<ThemeName, "custom">, ThemePreference> = {
   classic: {
     theme: "classic",
-    accentColor: "#d9363e",
-    backgroundColor: "#f5f6f8",
+    accentColor: "#44634e",
+    backgroundColor: "#fafaf7",
   },
   midnight: {
     theme: "midnight",
@@ -35,8 +35,8 @@ function validColor(value: unknown, fallback: string) {
 export const useThemeStore = defineStore("theme", {
   state: (): ThemePreference & { saving: boolean } => ({
     theme: "classic",
-    accentColor: "#d9363e",
-    backgroundColor: "#f5f6f8",
+    accentColor: "#44634e",
+    backgroundColor: "#fafaf7",
     interfaceLayout: "standard",
     saving: false,
   }),
@@ -97,6 +97,10 @@ export const useThemeStore = defineStore("theme", {
         user?.backgroundColor || local.backgroundColor,
         presets[this.theme === "custom" ? "classic" : this.theme].backgroundColor,
       );
+      // Upgrade only the old standard preset; keep deliberate custom colors intact.
+      if (this.theme === 'classic' && this.accentColor === '#d9363e' && this.backgroundColor === '#f5f6f8') {
+        Object.assign(this, presets.classic);
+      }
       const layout = user
         ? user.interfaceLayout || "standard"
         : local.interfaceLayout || "standard";

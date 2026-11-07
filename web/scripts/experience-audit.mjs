@@ -13,6 +13,7 @@ const login = await fetch(`${apiBase}/auth/login`, {
   body: JSON.stringify({ username: "user", password: "123456" }),
 }).then((r) => r.json());
 assert.equal(login.code, 200);
+if (login.data.user) login.data = { ...login.data.user, token: login.data.token };
 const catalog = await fetch(`${apiBase}/products`)
   .then((r) => r.json())
   .then((r) => r.data);

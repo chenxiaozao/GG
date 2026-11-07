@@ -16,6 +16,8 @@ public class User {
     public String password;
     public String nickname;
     public String phone;
+    @Column(nullable=false,columnDefinition="boolean default false") public boolean phoneVerified = false;
+    @Column(nullable=false,columnDefinition="boolean default false") public boolean mustChangePassword = false;
     public String email;
     @Column(length = 500)
     public String avatar;

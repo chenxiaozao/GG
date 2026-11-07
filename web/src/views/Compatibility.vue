@@ -104,7 +104,7 @@ function formatPrice(value: unknown) {
     <div class="container">
       <div class="breadcrumb"><router-link to="/">首页</router-link><span>›</span><span>配件适配</span></div>
       <header class="compat-heading">
-        <div><span>COMPATIBILITY CHECK</span><h1>配件适配检测</h1><p>先确定机器人主机，再从系统推荐或全部配件中选择需要核对的商品。</p></div>
+        <div><span>主机与配件</span><h1>配件适配检测</h1><p>先确定机器人主机，再从系统推荐或全部配件中选择需要核对的商品。</p></div>
         <div class="compat-summary"><b>{{ robots.length }}</b><span>款机器人主机</span><i></i><b>{{ accessories.length }}</b><span>款配件可检测</span></div>
       </header>
 

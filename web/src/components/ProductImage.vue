@@ -26,6 +26,7 @@ const source = computed(() =>
 const label = computed(() => {
   if (failed.value || !props.product.image) return "图片暂缺";
   if (props.product.imageKind === "REFERENCE") return "参考图";
+  if (props.product.imageKind === "OFFICIAL_VISUAL") return "官方展示图";
   if (
     props.product.imageKind === "ILLUSTRATION" ||
     /\.svg(?:$|\?)/.test(props.product.image)

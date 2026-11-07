@@ -1,0 +1,24 @@
+{
+  "catalog": [
+    {"id":1,"price":2000,"stock":4,"category":"地面清洁","endurance":180,"params":{"基站能力":"集尘/洗拖布","避障系统":"激光避障"}},
+    {"id":2,"price":3200,"stock":4,"category":"地面清洁","endurance":240,"params":{"基站能力":"集尘","毛发处理":"防缠绕滚刷"}},
+    {"id":3,"price":1500,"stock":0,"category":"地面清洁","params":{"基站能力":"集尘"}},
+    {"id":4,"price":1000,"stock":4,"category":"地面清洁","params":{"自动集尘":"不支持"}},
+    {"id":5,"price":2000,"stock":4,"category":"航拍无人机","params":{"控制方式":"遥控"}},
+    {"id":6,"price":1800,"stock":4,"enabled":false,"category":"地面清洁","params":{"基站能力":"集尘"}}
+  ],
+  "cases": [
+    {"id":"strict-budget","question":"扫地机器人预算3000","expected":[1,4]},
+    {"id":"explicit-relax","question":"扫地机器人预算3000，允许超预算","expected":[1,2,4]},
+    {"id":"required-evidence","question":"扫地机器人预算3000，必须自动集尘","expected":[1]},
+    {"id":"required-unknown","question":"扫地机器人预算3000，必须能爬楼梯","expected":[]},
+    {"id":"no-result-budget","question":"扫地机器人预算500","expected":[]},
+    {"id":"category","question":"无人机预算3000","expected":[5]},
+    {"id":"endurance","question":"扫地机器人预算5000，续航至少200分钟","expected":[2]},
+    {"id":"avoidance","question":"扫地机器人预算3000，必须避障","expected":[1]},
+    {"id":"negative-not-hard","question":"扫地机器人预算3000，不需要自动集尘","expected":[1,4]},
+    {"id":"trailing-budget","question":"扫地机器人2000元以内","expected":[1,4]},
+    {"id":"feature-combination","question":"扫地机器人预算5000，必须自动集尘，必须防缠绕","expected":[2]},
+    {"id":"unsupported-budget","question":"扫地机器人预算两千","expected":[]}
+  ]
+}

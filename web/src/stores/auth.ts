@@ -1,10 +1,14 @@
 import { defineStore } from "pinia";
 import api from "../api";
 import { clearAllGuestData, guestMergePayload } from "./guestData";
+function storedUser() {
+  try { const value=JSON.parse(localStorage.getItem('user') || 'null'); return value && typeof value==='object' ? value : null; }
+  catch { return null; }
+}
 
 export const useAuthStore = defineStore("auth", {
   state: () => ({
-    user: JSON.parse(localStorage.getItem("user") || "null") as any,
+    user: storedUser() as any,
   }),
   getters: {
     logged: (s) => !!s.user,
@@ -20,13 +24,19 @@ export const useAuthStore = defineStore("auth", {
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(user));
       this.user = user;
+      if (user.mustChangePassword) return;
       const guest = guestMergePayload();
       if (guest.cart.length || guest.favorites.length || guest.history.length) {
         await api.post("/profile/merge-guest", guest);
         clearAllGuestData();
       }
     },
-    logout() {
+    async logout() {
+      try { await api.post("/auth/logout"); }
+      catch (error) { if (localStorage.getItem('token')) throw error; }
+      this.clearSession();
+    },
+    clearSession() {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       this.user = null;

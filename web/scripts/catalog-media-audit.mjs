@@ -17,7 +17,7 @@ for (const entry of manifest) {
   const product = catalog.find((item) => item.name === entry.name);
   assert.ok(product, entry.name);
   assert.equal(product.image, entry.image);
-  assert.equal(product.imageKind, "MODEL_PHOTO");
+  assert.equal(product.imageKind, entry.kind || "MODEL_PHOTO");
   assert.equal(product.imageCheckedAt, entry.checkedAt);
   assert.equal(product.sourceUrl, entry.sourceUrl);
   const bytes = await readFile(path.resolve("public", entry.image.slice(1)));

@@ -18,8 +18,6 @@ public class ApiAccessGuard implements HandlerInterceptor {
     private final ObjectMapper mapper;
     private final Map<String, Bucket> buckets = new HashMap<>();
     private record Bucket(long expires, int count) {}
-    @Value("${app.ai-user-daily-limit:20}") private int userDaily;
-    @Value("${app.ai-global-daily-limit:100}") private int globalDaily;
     @Value("${app.auth-minute-limit:20}") private int authMinute;
 
     public ApiAccessGuard(AuthService auth, ObjectMapper mapper) {
@@ -47,20 +45,14 @@ public class ApiAccessGuard implements HandlerInterceptor {
             // Do not trust arbitrary client-supplied X-Forwarded-For.
             return allow("auth:" + request.getRemoteAddr(), authMinute, 60000) || reject(response, 429, "操作过于频繁，请稍后重试");
         }
-        if ("GET".equals(method) && (Set.of("/api/categories", "/api/brands", "/api/products", "/api/advisor/ai-status", "/api/compatibility/check").contains(path)
+        if ("GET".equals(method) && (Set.of("/api/health", "/api/categories", "/api/brands", "/api/products", "/api/advisor/ai-status", "/api/compatibility/check").contains(path)
                 || path.matches("/api/products/\\d+(?:/reviews|/accessories)?"))) return true;
         if ("POST".equals(method) && Set.of("/api/products/compare", "/api/compatibility/analyze", "/api/advisor", "/api/advisor/recommend", "/api/trade-in/estimate").contains(path)) return true;
         User user;
         try { user = auth.current(Objects.toString(request.getHeader("X-Token"), "")); }
         catch (com.xiaozao.robotmall.common.BizException error) { return reject(response, 401, "登录已过期，请重新登录"); }
         if (path.startsWith("/api/admin/") && !"ADMIN".equals(user.role)) return reject(response, 403, "无管理员权限");
-        if ("/api/advisor/chat".equals(path)) {
-            if (!allow("ai-minute:" + user.id, 3, 60000)
-                    || !allow("ai-day:" + user.id, userDaily, 86400000)
-                    || !allow("ai-total", globalDaily, 86400000)) {
-                return reject(response, 429, "AI 咨询额度已达上限，请稍后重试或使用按条件推荐");
-            }
-        }
+        if (user.mustChangePassword && !Set.of("/api/auth/me","/api/auth/logout","/api/profile/password").contains(path)) return reject(response,403,"请先修改管理员设置的临时密码");
         return true;
     }
 

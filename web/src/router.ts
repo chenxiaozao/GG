@@ -56,7 +56,9 @@ const router = createRouter({
 });
 
 router.beforeEach((to) => {
-  const user = JSON.parse(localStorage.getItem("user") || "null");
+  let user: any = null;
+  try { user = JSON.parse(localStorage.getItem("user") || "null"); } catch { localStorage.removeItem('user'); }
+  if (user?.mustChangePassword && (to.path!=='/profile' || to.hash!=='#security')) return {path:'/profile',hash:'#security'};
   if (to.meta.requiresAuth && !user)
     return { path: "/login", query: { redirect: to.fullPath } };
   if (to.meta.requiresAdmin && user?.role !== "ADMIN")

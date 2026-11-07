@@ -25,3 +25,5 @@
 **/.vscode/
 **/test-results/
 **/playwright-report/
+server/deploy/server.jar
+server/deploy/backups/

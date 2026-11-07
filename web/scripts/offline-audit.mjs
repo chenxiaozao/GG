@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import {launchAuditBrowser} from './audit-browser.mjs';
+import {readFile} from 'node:fs/promises';
+const snapshot=JSON.parse(await readFile('public/catalog-snapshot.json','utf8'));
+const {browser,shutdown}=await launchAuditBrowser({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+try {
+ const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ let blocked=true;
+ await page.route('**/api/**',r=>blocked?r.abort('connectionrefused'):r.fulfill({json:{code:200,data:snapshot.categories}}));
+ await page.goto('http://127.0.0.1:5173/');
+ await page.locator('.offline-notice').waitFor();
+ await page.getByRole('link',{name:/石头 G20S Ultra/}).first().waitFor();
+ await page.goto('http://127.0.0.1:5173/products');
+ await page.locator('.product-card').first().waitFor();
+ await page.goto('http://127.0.0.1:5173/product/1');
+ await page.getByRole('heading',{name:'石头 G20S Ultra',exact:true}).waitFor();
+ await page.goto('http://127.0.0.1:5173/compare');
+ await page.locator('.compare-products input').first().waitFor();
+ await page.locator('.compare-products input').nth(0).check();await page.locator('.compare-products input').nth(1).check();
+ await page.getByRole('button',{name:'生成对比结果'}).click();await page.locator('.compare-result').waitFor();
+ await page.goto('http://127.0.0.1:5173/login');
+ await page.getByLabel('用户名').count();
+ await page.locator('input').first().fill('offline-test');await page.locator('input[type=password]').fill('NotARealPassword');
+ await page.getByRole('button',{name:'提交',exact:true}).click();
+ await page.getByText(/演示后端未开启/).last().waitFor();
+ assert.equal(await page.evaluate(()=>localStorage.getItem('token')),null);
+ blocked=false;
+ await Promise.all([page.waitForNavigation(),page.getByRole('button',{name:'重新连接',exact:true}).click()]);
+ assert.equal(await page.locator('.offline-notice').count(),0);
+ assert.deepEqual(errors,[]);
+ console.log('PASS: offline catalog/detail/list/compare, clear notice, no fake login, manual reconnect recovery.');
+} finally {await shutdown();}

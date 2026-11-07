@@ -18,8 +18,6 @@ class DeploymentSecurityTests {
         when(auth.current("valid")).thenReturn(user);
         when(auth.current("")).thenThrow(new BizException("登录已过期"));
         ApiAccessGuard guard = new ApiAccessGuard(auth, new ObjectMapper());
-        ReflectionTestUtils.setField(guard, "userDaily", 2);
-        ReflectionTestUtils.setField(guard, "globalDaily", 3);
         ReflectionTestUtils.setField(guard, "authMinute", 2);
         return guard;
     }
@@ -33,17 +31,19 @@ class DeploymentSecurityTests {
     @Test void anonymousCannotReadAccountsOrUseAi() throws Exception {
         var g = guard("USER");
         assertEquals(200, call(g, "GET", "/api/products", null));
+        assertEquals(200, call(g, "GET", "/api/health", null));
+        assertEquals(401, call(g, "POST", "/api/health", null));
         for (String path : new String[]{"/api/profile/summary", "/api/orders", "/api/admin/users", "/api/new-private-endpoint"})
             assertEquals(401, call(g, "GET", path, null));
         assertEquals(401, call(g, "POST", "/api/advisor/chat", null));
     }
-    @Test void roleAndQuotaAreEnforced() throws Exception {
+    @Test void roleAndAuthRateAreEnforced() throws Exception {
         var g = guard("USER");
         assertEquals(403, call(g, "GET", "/api/admin/users", "valid"));
         assertEquals(200, call(guard("ADMIN"), "GET", "/api/admin/users", "valid"));
         assertEquals(200, call(g, "POST", "/api/advisor/chat", "valid"));
         assertEquals(200, call(g, "POST", "/api/advisor/chat", "valid"));
-        assertEquals(429, call(g, "POST", "/api/advisor/chat", "valid"));
+        assertEquals(200, call(g, "POST", "/api/advisor/chat", "valid")); // quota is charged in controller after scope routing
         assertEquals(200, call(g, "POST", "/api/auth/login", null));
         assertEquals(200, call(g, "POST", "/api/auth/register", null));
         assertEquals(429, call(g, "POST", "/api/auth/login", null));

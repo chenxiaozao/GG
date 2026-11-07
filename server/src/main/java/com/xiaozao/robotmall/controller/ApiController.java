@@ -13,7 +13,6 @@ import com.xiaozao.robotmall.common.*;
 import com.xiaozao.robotmall.entity.*;
 import com.xiaozao.robotmall.repository.*;
 import com.xiaozao.robotmall.service.AuthService;
-import com.xiaozao.robotmall.service.DeepSeekAdvisorService;
 import com.xiaozao.robotmall.service.AfterSalePolicy;
 import com.xiaozao.robotmall.service.CatalogMediaService;
 
@@ -37,7 +36,6 @@ public class ApiController {
     private final ReviewRepository reviews;
     private final CompatibilityRepository compat;
     private final AfterSaleRequestRepository afterSales;
-    private final DeepSeekAdvisorService deepSeek;
     private final CatalogMediaService media;
 
     public ApiController(
@@ -55,7 +53,6 @@ public class ApiController {
             ReviewRepository r,
             CompatibilityRepository co,
             AfterSaleRequestRepository as,
-            DeepSeekAdvisorService ds,
             CatalogMediaService cm) {
         auth = a;
         users = u;
@@ -71,7 +68,6 @@ public class ApiController {
         reviews = r;
         compat = co;
         afterSales = as;
-        deepSeek = ds;
         media = cm;
     }
 
@@ -99,25 +95,6 @@ public class ApiController {
         return product;
     }
 
-    @PostMapping("/auth/login")
-    public ApiResponse<?> login(@RequestBody Map<String, String> b) {
-        User user = auth.login(b.get("username"), b.get("password"));
-        return ApiResponse.ok(Map.of("user", user, "token", user.token));
-    }
-
-    @PostMapping("/auth/register")
-    public ApiResponse<?> register(@RequestBody Map<String, String> b) {
-        return ApiResponse.ok(auth.register(
-                b.get("username"),
-                b.get("password"),
-                b.getOrDefault("nickname", b.get("username"))
-        ));
-    }
-
-    @GetMapping("/auth/me")
-    public ApiResponse<?> current(@RequestHeader("X-Token") String t) {
-        return ApiResponse.ok(me(t));
-    }
 
     @GetMapping("/profile/summary")
     public ApiResponse<?> profileSummary(@RequestHeader("X-Token") String t) {
@@ -480,125 +457,7 @@ public class ApiController {
         return value == null || value.isBlank() ? fallback : value;
     }
 
-    @PostMapping("/advisor")
-    public ApiResponse<?> advisor(@RequestBody Map<String, Object> body) {
-        Object budgetValue = body.get("budget");
-        Double budget = budgetValue instanceof Number number ? number.doubleValue() : null;
-        String scene = Objects.toString(body.get("scene"), "").trim();
-        Map<String, String> sceneCategories = new LinkedHashMap<>();
-        sceneCategories.put("擦窗", "擦窗机器人");
-        sceneCategories.put("庭院", "庭院与泳池");
-        sceneCategories.put("割草", "庭院与泳池");
-        sceneCategories.put("泳池", "庭院与泳池");
-        sceneCategories.put("陪伴", "陪伴娱乐");
-        sceneCategories.put("宠物", "陪伴娱乐");
-        sceneCategories.put("清洁", "地面清洁");
-        sceneCategories.put("扫地", "地面清洁");
-        sceneCategories.put("航拍", "航拍无人机");
-        sceneCategories.put("四足", "四足机器人");
-        sceneCategories.put("人形", "人形机器人");
-        sceneCategories.put("商用", "商用服务");
-        sceneCategories.put("教育", "教育编程");
-        String categoryName = sceneCategories.entrySet().stream()
-                .filter(entry -> scene.contains(entry.getKey()))
-                .map(Map.Entry::getValue)
-                .findFirst().orElse("");
-        Set<Long> categoryIds = cats.findAll().stream()
-                .filter(x -> categoryName.isBlank() || categoryName.equals(x.name))
-                .map(x -> x.id).collect(Collectors.toSet());
-        List<Product> list = products.findAll().stream()
-                .filter(x -> x.enabled && "ROBOT".equals(x.type))
-                .filter(x -> categoryName.isBlank() || categoryIds.contains(x.categoryId))
-                .filter(x -> budget == null || x.price.doubleValue() <= budget)
-                .sorted(Comparator.comparingDouble((Product x) -> x.rating).reversed()
-                        .thenComparing(Comparator.comparingInt((Product x) -> x.sales).reversed()))
-                .limit(8)
-                .toList();
-        list.forEach(this::enrich);
-        return ApiResponse.ok(list);
-    }
 
-    @GetMapping("/advisor/ai-status")
-    public ApiResponse<?> advisorAiStatus() {
-        return ApiResponse.ok(Map.of("configured", deepSeek.configured(), "provider", "DeepSeek", "model", deepSeek.modelName()));
-    }
-
-    @PostMapping("/advisor/chat")
-    public ApiResponse<?> advisorChat(@RequestBody Map<String, Object> body) {
-        String question = Objects.toString(body.get("question"), "");
-        if (question.isBlank() || question.length() > 2000) throw new BizException("问题须为 1 至 2000 字");
-        List<Map<String, String>> history = new ArrayList<>();
-        Object historyValue = body.get("history");
-        if (historyValue instanceof List<?> list) {
-            for (Object value : list.stream().skip(Math.max(0, list.size() - 12)).toList()) {
-                if (value instanceof Map<?, ?> row) {
-                    if (Objects.toString(row.get("content"), "").length() > 4000)
-                        throw new BizException("对话历史过长，请开始新的对话");
-                    history.add(Map.of("role", Objects.toString(row.get("role"), "user"),
-                            "content", Objects.toString(row.get("content"), "")));
-                }
-            }
-        }
-        List<Product> available = products.findAll().stream().filter(x -> x.enabled).toList();
-        available.forEach(this::enrich);
-        List<Product> catalog = deepSeek.selectCatalog(question, history, available);
-        DeepSeekAdvisorService.AdvisorReply reply = deepSeek.chat(question, catalog, history);
-        Map<Long, Product> catalogById = catalog.stream().collect(Collectors.toMap(product -> product.id, product -> product));
-        List<Product> referencedProducts = reply.productIds().stream().map(catalogById::get)
-                .filter(Objects::nonNull).filter(x -> x.stock > 0).toList();
-        return ApiResponse.ok(Map.of("answer", reply.answer(), "products", referencedProducts, "provider", "DeepSeek"));
-    }
-
-    @PostMapping("/advisor/recommend")
-    public ApiResponse<?> advisorRecommend(@RequestBody Map<String, Object> body) {
-        Object budgetValue = body.get("budget");
-        double budget = budgetValue instanceof Number number ? number.doubleValue() : 0;
-        if (budget < 500 || budget > 1000000) throw new BizException("预算请输入 500 至 1000000 元");
-        String scene = Objects.toString(body.get("scene"), "").trim();
-        String priority = Objects.toString(body.get("priority"), "balanced");
-        String space = Objects.toString(body.get("space"), "standard");
-        String experience = Objects.toString(body.get("experience"), "first");
-        Map<String, String> categories = Map.of(
-                "cleaning", "地面清洁", "window", "擦窗机器人", "garden", "庭院与泳池",
-                "companion", "陪伴娱乐", "drone", "航拍无人机", "education", "教育编程",
-                "quadruped", "四足机器人", "service", "商用服务");
-        String categoryName = categories.getOrDefault(scene, "地面清洁");
-        Set<Long> categoryIds = cats.findAll().stream().filter(x -> categoryName.equals(x.name)).map(x -> x.id).collect(Collectors.toSet());
-
-        List<Product> candidates = products.findAll().stream()
-                .filter(x -> x.enabled && "ROBOT".equals(x.type) && categoryIds.contains(x.categoryId))
-                .filter(x -> x.price.doubleValue() <= budget * 1.2)
-                .toList();
-        List<Map<String, Object>> ranked = candidates.stream().map(product -> {
-            double price = product.price.doubleValue();
-            double priceRatio = price / budget;
-            double score = product.rating * 11 + Math.min(16, Math.log10(Math.max(1, product.sales) + 1) * 6);
-            score += priceRatio <= 1 ? 18 - Math.abs(priceRatio - .78) * 12 : Math.max(0, 8 - (priceRatio - 1) * 35);
-            List<String> reasons = new ArrayList<>();
-            if (priceRatio <= 1) reasons.add("价格在预算内，约占预算 " + Math.round(priceRatio * 100) + "%");
-            else reasons.add("价格略高于预算，但综合表现进入备选");
-            if (product.rating >= 4.7) { score += 5; reasons.add("用户评分较高（" + String.format("%.1f", product.rating) + " 分）"); }
-            if (product.sales >= 300) { score += 4; reasons.add("销量表现稳定，具有较多选购参考"); }
-            if ("value".equals(priority)) { score += Math.max(0, 12 * (1 - priceRatio)); reasons.add("符合性价比优先取向"); }
-            if ("performance".equals(priority) && product.rating >= 4.6) { score += 8; reasons.add("性能优先条件下综合评分领先"); }
-            if ("easy".equals(priority) && product.warranty != null && !product.warranty.isBlank()) { score += 5; reasons.add("保修与服务信息完整，使用更省心"); }
-            if ("small".equals(space) && priceRatio < .8) score += 3;
-            if ("experienced".equals(experience) && product.intelligenceLevel != null) { score += 3; reasons.add("适合关注进阶能力与智能化参数的用户"); }
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("product", enrich(product));
-            row.put("score", Math.min(99, Math.round(score)));
-            row.put("withinBudget", priceRatio <= 1);
-            row.put("reasons", reasons.stream().limit(3).toList());
-            return row;
-        }).sorted(Comparator.comparingLong((Map<String, Object> row) -> ((Number) row.get("score")).longValue()).reversed()).limit(6).toList();
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("categoryName", categoryName);
-        result.put("budget", budget);
-        result.put("items", ranked);
-        result.put("summary", ranked.isEmpty() ? "当前条件下暂时没有合适商品" : "根据场景、预算、选购侧重点和使用经验完成综合排序");
-        return ApiResponse.ok(result);
-    }
 
     @GetMapping("/cart")
     public ApiResponse<?> cart(@RequestHeader("X-Token") String t) {
@@ -1290,7 +1149,7 @@ public class ApiController {
     @GetMapping("/admin/users")
     public ApiResponse<?> adminUsers(@RequestHeader("X-Token") String t) {
         admin(t);
-        return ApiResponse.ok(users.findAll());
+        return ApiResponse.ok(users.findAll().stream().map(u->{Map<String,Object> row=new LinkedHashMap<>();row.put("id",u.id);row.put("username",u.username);row.put("nickname",u.nickname);row.put("role",u.role);row.put("enabled",u.enabled);row.put("createTime",u.createTime);row.put("mustChangePassword",u.mustChangePassword);row.put("phoneVerified",u.phoneVerified);row.put("maskedPhone",u.phone==null||u.phone.isBlank()?"未填写":(u.phone.length()==11?u.phone.substring(0,3)+"****"+u.phone.substring(7):"已填写"));return row;}).toList());
     }
 
     @PutMapping("/admin/users/{id}/toggle")
@@ -1303,6 +1162,7 @@ public class ApiController {
             throw new BizException("不能禁用管理员账号");
         }
         target.enabled = !target.enabled;
+        if (!target.enabled) { target.token = null; target.tokenExpire = null; }
         users.save(target);
         return ApiResponse.ok(target);
     }

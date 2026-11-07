@@ -4,6 +4,9 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import UiIcon from "../components/UiIcon.vue";
 import api from "../api";
+import ShoppingPreferencePanel from '../components/ShoppingPreferencePanel.vue';
+import ProductGrid from '../components/ProductGrid.vue';
+import ShoppingPlanPanel from '../components/ShoppingPlanPanel.vue';
 import { chinaRegions, regionDataVersion } from "../data/chinaRegionsFull";
 import { useAuthStore } from "../stores/auth";
 import {
@@ -18,9 +21,11 @@ const route = useRoute();
 const router = useRouter();
 const sections = [
   { id: "overview", name: "账户概览", icon: "user" },
+  { id: "plans", name: "选购计划", icon: "orders" },
   { id: "account", name: "个人资料", icon: "settings" },
   { id: "addresses", name: "收货地址", icon: "location" },
   { id: "security", name: "账号安全", icon: "lock" },
+  { id: "preferences", name: "选购偏好", icon: "settings" },
   { id: "appearance", name: "界面与主题", icon: "palette" },
 ];
 const activeSection = computed(() => {
@@ -38,6 +43,8 @@ watch(activeSection, async () => {
     ?.focus({ preventScroll: true });
 });
 const summary = ref<any>(null);
+const favoriteProducts = ref<any[]>([]);
+const favoritesError = ref(false);
 const loading = ref(true);
 const message = ref("");
 const accent = ref(theme.accentColor);
@@ -160,6 +167,11 @@ async function load() {
       api.get("/addresses"),
     ]);
     summary.value = summaryResult;
+    try {
+      const favorites = await api.get('/favorites') as any[];
+      favoriteProducts.value = favorites.map(entry => entry.product || entry).filter(p => p?.id);
+      favoritesError.value = false;
+    } catch { favoritesError.value = true; }
     addresses.value = addressResult as any[];
     Object.assign(profileForm, {
       nickname: auth.user?.nickname || "",
@@ -304,7 +316,8 @@ async function changePassword() {
       newPassword: "",
       confirmPassword: "",
     });
-    message.value = "密码修改成功，请妥善保管新密码";
+    auth.clearSession();
+    await router.replace({ path: "/login", query: { notice: "password-changed" } });
   } catch (error: any) {
     message.value = error?.message || "密码修改失败";
   }
@@ -470,11 +483,13 @@ onMounted(() => {
       </section>
 
       <div class="notice" v-if="message">{{ message }}</div>
+      <ShoppingPlanPanel v-if="activeSection === 'plans'" />
       <section v-if="activeSection === 'overview'" class="space-continuation" aria-label="继续我的选购">
-        <div><span>从上次的选择继续</span><h2>慢慢挑，找到适合自己的。</h2><p>先看看收藏，或把候选商品放在一起比较。还没方向时，也可以让选购助手帮忙。</p></div>
+        <div><span>专属于你的选购空间</span><h2>把喜欢的留下，把选择想清楚。</h2><p>这里不只有订单。你的心愿清单、浏览足迹和选购偏好，都可以从这里继续。</p></div>
         <nav><router-link to="/favorites"><UiIcon name="heart" /><b>我的心愿清单</b><small>重看收藏的商品 →</small></router-link><router-link to="/compare"><UiIcon name="compare" /><b>比较候选商品</b><small>看清参数差异 →</small></router-link><router-link to="/advisor"><UiIcon name="spark" /><b>和选购助手聊聊</b><small>从使用需求开始 →</small></router-link></nav>
       </section>
-      <div class="profile-layout">
+      <section v-if="activeSection === 'overview'" class="personal-shelf" aria-label="我的收藏预览"><div class="scene-heading"><div><span class="section-kicker">我的心愿清单</span><h2>喜欢的，不必重新找</h2></div><router-link to="/favorites">管理全部收藏 →</router-link></div><ProductGrid v-if="favoriteProducts.length" :products="favoriteProducts.slice(0,3)" /><div v-else class="shelf-empty"><UiIcon name="heart" :size="32" /><div><h3>{{ favoritesError ? '收藏暂时未能加载' : '给喜欢的商品留个位置' }}</h3><p>{{ favoritesError ? '请进入收藏页重试，你的收藏不会被清除。' : '在商品详情页点一下收藏，下次回来就能从这里继续。' }}</p></div><router-link to="/products">去逛逛 →</router-link></div></section>
+      <div class="profile-layout" v-show="activeSection !== 'plans'">
         <div class="profile-main">
           <section
             v-show="activeSection === 'overview'"
@@ -571,7 +586,7 @@ onMounted(() => {
           >
             <div class="profile-section-head">
               <div>
-                <span>ACCOUNT</span>
+                <span>账户资料</span>
                 <h2 tabindex="-1">个人资料</h2>
               </div>
               <small>完善联系方式，方便订单服务</small>
@@ -632,7 +647,7 @@ onMounted(() => {
                   inputmode="numeric"
                   maxlength="11"
                   placeholder="用于订单联系"
-              /></label>
+              /><small>仅用于联系，{{auth.user?.phoneVerified?'已验证':'未短信验证，不是手机号登录绑定'}}</small></label>
               <label
                 ><span>电子邮箱</span
                 ><input
@@ -663,7 +678,7 @@ onMounted(() => {
           >
             <div class="profile-section-head">
               <div>
-                <span>DELIVERY</span>
+                <span>收货信息</span>
                 <h2 tabindex="-1">收货地址</h2>
               </div>
               <small
@@ -861,11 +876,12 @@ onMounted(() => {
           >
             <div class="profile-section-head">
               <div>
-                <span>SECURITY</span>
+                <span>登录与安全</span>
                 <h2 tabindex="-1">账号安全</h2>
               </div>
-              <small>密码修改后当前设备仍保持登录</small>
+              <small>修改后撤销旧登录凭证，需要重新登录</small>
             </div>
+            <p v-if="auth.user?.mustChangePassword" class="notice" role="alert">管理员已重置临时密码。请先设置你自己的密码，再使用其他账户功能。</p>
             <form class="password-form" @submit.prevent="changePassword">
               <label
                 ><span>原密码</span
@@ -903,6 +919,7 @@ onMounted(() => {
             </form>
           </section>
 
+          <section v-if="activeSection === 'preferences'" id="preferences" class="profile-section profile-form-section"><ShoppingPreferencePanel /></section>
           <section
             v-show="activeSection === 'appearance'"
             id="appearance"

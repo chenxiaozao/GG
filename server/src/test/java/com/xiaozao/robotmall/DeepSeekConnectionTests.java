@@ -49,6 +49,23 @@ class DeepSeekConnectionTests {
             assertThrows(BizException.class, () -> service.chat("虚构问题", List.of(), List.of()));
         }
     }
+    @Test void promptRequiresEvidenceForPetHairAndAreaClaims() throws Exception {
+        var mapper=new ObjectMapper();String answer=mapper.writeValueAsString(java.util.Map.of("answer","测试回复","recommendedProductIds",List.of()));
+        var service=withResponse(200,mapper.writeValueAsString(java.util.Map.of("choices",List.of(java.util.Map.of("message",java.util.Map.of("content",answer))))));
+        service.chat("虚构选购问题",List.of(),List.of());
+        HttpClient client=(HttpClient)ReflectionTestUtils.getField(service,"client");
+        var captured=org.mockito.ArgumentCaptor.forClass(HttpRequest.class);
+        verify(client).send(captured.capture(),org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any());
+        var bytes=new java.io.ByteArrayOutputStream();var done=new java.util.concurrent.CompletableFuture<String>();
+        captured.getValue().bodyPublisher().orElseThrow().subscribe(new java.util.concurrent.Flow.Subscriber<java.nio.ByteBuffer>(){
+            public void onSubscribe(java.util.concurrent.Flow.Subscription s){s.request(Long.MAX_VALUE);}
+            public void onNext(java.nio.ByteBuffer b){byte[] a=new byte[b.remaining()];b.get(a);bytes.writeBytes(a);}
+            public void onError(Throwable t){done.completeExceptionally(t);}
+            public void onComplete(){done.complete(bytes.toString(java.nio.charset.StandardCharsets.UTF_8));}
+        });
+        String system=mapper.readTree(done.get(2,java.util.concurrent.TimeUnit.SECONDS)).path("messages").get(0).path("content").asText();
+        assertTrue(system.contains("禁止仅按标称吸力"));assertTrue(system.contains("禁止仅凭续航分钟数"));assertTrue(system.contains("推测必须标为待核实"));
+    }
     @Test void structuredAnswerIsParsedThroughTransport() throws Exception {
         var mapper = new ObjectMapper();
         String content = mapper.writeValueAsString(java.util.Map.of("answer", "虚构推荐说明", "recommendedProductIds", List.of(1)));

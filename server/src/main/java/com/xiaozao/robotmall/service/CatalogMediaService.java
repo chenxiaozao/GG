@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class CatalogMediaService {
     public record Entry(String name, String image, String sourceUrl,
-            String imageSourceUrl, String region, String checkedAt) {}
+            String imageSourceUrl, String region, String checkedAt, String kind, String note) {}
 
     private final Map<String, Entry> entries;
     private static final Map<String, String> REFERENCE_MODELS = Map.ofEntries(
@@ -70,8 +70,8 @@ public class CatalogMediaService {
         product.sourceRegion = null;
         Entry entry = entries.get(product.name);
         if (entry != null && entry.image().equals(product.image)) {
-            product.imageKind = "MODEL_PHOTO";
-            product.imageNote = "对应型号官方产品图（" + entry.region() + "），颜色及套装以来源页面为准。";
+            product.imageKind = "OFFICIAL_VISUAL".equals(entry.kind()) ? "OFFICIAL_VISUAL" : "MODEL_PHOTO";
+            product.imageNote = entry.note()!=null ? entry.note() : "对应型号官方产品图（" + entry.region() + "），颜色及套装以来源页面为准。";
             product.imageSourceUrl = entry.imageSourceUrl();
             product.imageCheckedAt = entry.checkedAt();
             product.sourceRegion = entry.region();

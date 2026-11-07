@@ -1,0 +1,34 @@
+{
+    email {$ACME_EMAIL}
+    admin off
+}
+
+{$API_DOMAIN} {
+    encode zstd gzip
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+        -Server
+    }
+    # Do not add a second CORS implementation here; Spring validates the Pages origin.
+    @application path /api/* /uploads/avatars/*
+    handle @application {
+        request_body {
+            max_size 3MB
+        }
+        reverse_proxy backend:8080 {
+            # Replace, rather than trust, visitor-supplied forwarding headers.
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-Host {host}
+            header_up -Forwarded
+            transport http {
+                dial_timeout 5s
+                response_header_timeout 90s
+            }
+        }
+    }
+    handle {
+        respond "Not found" 404
+    }
+}

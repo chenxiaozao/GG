@@ -6,6 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "typecheck": "vue-tsc --noEmit",
+    "test:unit": "node scripts/specs-test.mjs && node scripts/comparison-store-test.mjs && node scripts/public-backend-test.mjs",
+    "audit:interactions": "node scripts/interaction-geometry-audit.mjs",
+    "audit:trade-insets": "node scripts/trade-inset-audit.mjs",
+    "audit:site": "node scripts/site-completion-audit.mjs",
+    "audit:offline": "node scripts/offline-audit.mjs",
+    "audit:controls": "node scripts/control-spacing-audit.mjs",
     "audit:responsive": "node scripts/responsive-audit.mjs",
     "audit:service-ui": "node scripts/service-ui-audit.mjs",
     "audit:layouts": "node scripts/layout-audit.mjs",

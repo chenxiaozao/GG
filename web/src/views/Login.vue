@@ -9,7 +9,7 @@ const router = useRouter();
 const route = useRoute();
 const form = reactive({ username: "", password: "", nickname: "" });
 const mode = ref<"login" | "register">("login");
-const msg = ref("");
+const msg = ref(route.query.notice === "password-changed" ? "密码已修改，旧登录凭证已撤销，请重新登录" : "");
 const loading = ref(false);
 
 async function submit() {
@@ -19,6 +19,7 @@ async function submit() {
   try {
     if (mode.value === "login") {
       await auth.login(form.username.trim(), form.password);
+      if (auth.user?.mustChangePassword) { await router.replace('/profile#security'); return; }
       const redirect = typeof route.query.redirect === "string" ? route.query.redirect : "";
       await router.replace(auth.isAdmin ? "/admin" : redirect || "/");
     } else {

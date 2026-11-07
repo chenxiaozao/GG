@@ -3,6 +3,9 @@ import { resourceUrl } from "../resourceUrl";
 import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 import api from "../api";
 import EmptyState from "../components/EmptyState.vue";
+import AdminAccountPanel from '../components/AdminAccountPanel.vue';
+const maintainingUser=ref<any>(null);
+async function refreshMaintainedAccount(){const id=maintainingUser.value?.id;await load();if(maintainingUser.value?.id===id)maintainingUser.value=users.value.find(user=>user.id===id)||null;}
 
 const dashboard = ref<any>(null);
 const users = ref<any[]>([]);
@@ -363,7 +366,7 @@ async function updateAfterSale(item: any) {
 function imageFallback(event: Event) {
   const img = event.target as HTMLImageElement;
   if (!img.src.endsWith("/products/placeholder.svg"))
-    img.src = "/products/placeholder.svg";
+    img.src = resourceUrl();
 }
 onMounted(load);
 </script>
@@ -670,6 +673,7 @@ onMounted(load);
               <th>角色</th>
               <th>状态</th>
               <th>注册时间</th>
+              <th>联系方式</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -684,6 +688,7 @@ onMounted(load);
                 }}</span>
               </td>
               <td>{{ dateText(u.createTime) }}</td>
+              <td>{{u.maskedPhone||'未填写'}}<small class="muted"> · {{u.phoneVerified?'已验证':'未验证'}}</small></td>
               <td>
                 <button
                   class="text-action"
@@ -698,6 +703,7 @@ onMounted(load);
                         : "启用账号"
                   }}
                 </button>
+                <button class="text-action" :disabled="u.role==='ADMIN'||!!busy" @click="maintainingUser=u">维护账号与偏好</button>
               </td>
             </tr>
           </tbody>
@@ -710,6 +716,7 @@ onMounted(load);
       />
     </section>
 
+    <AdminAccountPanel v-if="maintainingUser" :user="maintainingUser" @close="maintainingUser=null" @updated="refreshMaintainedAccount" />
     <section v-if="tab === 'order'" class="admin-order-list">
       <div class="admin-tools">
         <label class="tool-search"

@@ -18,11 +18,11 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - name: Require deployed HTTPS backend
+      - name: Validate optional HTTPS backend and Pages CORS
         env:
           API_URL: ${{ vars.API_BASE_URL }}
-        run: |
-          node -e 'const u = new URL(process.env.API_URL); if (u.protocol !== "https:" || !u.pathname.endsWith("/api")) process.exit(1)'
+          FRONTEND_ORIGIN: https://${{ github.repository_owner }}.github.io
+        run: node web/scripts/validate-public-backend.mjs --check-health
       - run: npm ci
         working-directory: web
       - run: npm run build
@@ -31,6 +31,7 @@ jobs:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
           VITE_ROUTER_MODE: hash
           VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
+          VITE_OFFLINE_ONLY: ${{ vars.API_BASE_URL == '' && 'true' || 'false' }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: web/dist

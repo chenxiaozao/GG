@@ -150,7 +150,7 @@ onMounted(load);
   <div class="service-page">
     <div class="service-hero">
       <div class="container">
-        <span>AFTER-SALES SERVICE</span>
+        <span>订单与设备服务</span>
         <h1>售后服务中心</h1>
         <p>申请退款、退货或维修，并跟踪每一个处理节点。</p>
       </div>

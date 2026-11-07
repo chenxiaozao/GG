@@ -21,7 +21,7 @@ const login = async (username, password) => {
   const body = await response.json();
   if (!response.ok || body.code !== 200)
     throw new Error(`${username} 登录失败`);
-  return body.data;
+  return body.data.user ? { ...body.data.user, token: body.data.token } : body.data;
 };
 const user = await login("user", "123456");
 const admin = await login("admin", "admin123");

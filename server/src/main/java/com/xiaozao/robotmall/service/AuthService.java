@@ -38,6 +38,8 @@ public class AuthService {
             throw new BizException("用户名须为 3 至 30 位字母、数字或下划线");
         if (password == null || password.length() < 8 || password.length() > 64)
             throw new BizException("密码须为 8 至 64 位");
+        if (password.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72)
+            throw new BizException("密码的UTF-8长度不能超过72字节，请缩短中文或特殊字符密码");
         if (nickname == null || nickname.isBlank() || nickname.length() > 30)
             throw new BizException("昵称须为 1 至 30 字");
         if (users.findByUsername(username).isPresent()) {
@@ -49,7 +51,8 @@ public class AuthService {
         u.nickname = nickname;
         u.role = "USER";
         u.createTime = LocalDateTime.now();
-        return users.save(u);
+        try { return users.save(u); }
+        catch (org.springframework.dao.DataIntegrityViolationException duplicate) { throw new BizException("用户名已存在，请更换用户名"); }
     }
 
     public User current(String token) {
@@ -73,6 +76,7 @@ public class AuthService {
         if (!cleanEmail.isBlank() && !cleanEmail.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) throw new BizException("请输入正确的邮箱地址");
         if (cleanAvatar.length() > 500) throw new BizException("头像地址过长");
         u.nickname = cleanNickname;
+        if (!java.util.Objects.equals(u.phone,cleanPhone)) u.phoneVerified=false;
         u.phone = cleanPhone;
         u.email = cleanEmail;
         u.avatar = cleanAvatar;
@@ -82,8 +86,20 @@ public class AuthService {
     public void changePassword(User u, String oldPassword, String newPassword) {
         if (oldPassword == null || !encoder.matches(oldPassword, u.password)) throw new BizException("原密码不正确");
         if (newPassword == null || newPassword.length() < 8 || newPassword.length() > 64) throw new BizException("新密码须为 8 至 64 个字符");
+        if (newPassword.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72) throw new BizException("密码的UTF-8长度不能超过72字节");
         if (oldPassword.equals(newPassword)) throw new BizException("新密码不能与原密码相同");
         u.password = encoder.encode(newPassword);
+        u.mustChangePassword = false;
+        u.token = null;
+        u.tokenExpire = null;
         users.save(u);
+    }
+
+    public void logout(String token) {
+        users.findByToken(token).ifPresent(u -> {
+            u.token = null;
+            u.tokenExpire = null;
+            users.save(u);
+        });
     }
 }

@@ -31,7 +31,7 @@ class CatalogMediaTests {
                 assertFalse(entry.image().contains(".."));
                 assertEquals("https", URI.create(entry.sourceUrl()).getScheme());
                 assertEquals("https", URI.create(entry.imageSourceUrl()).getScheme());
-                assertEquals("2026-09-17", entry.checkedAt());
+                assertDoesNotThrow(() -> java.time.LocalDate.parse(entry.checkedAt()));
                 Path asset = Path.of("../web/public" + entry.image());
                 assertTrue(Files.isRegularFile(asset), entry.image());
                 assertTrue(Files.size(asset) > 1000);
@@ -39,6 +39,16 @@ class CatalogMediaTests {
         }
     }
 
+    @Test void newProductVisualsReplaceOnlyKnownPlaceholders() throws Exception {
+        var service=new CatalogMediaService(mapper);
+        for(String name:List.of("Sphero Mini","Sphero indi","Makeblock mBot Ranger","Makeblock Codey Rocky","Enabot EBO SE","Enabot EBO Air")){
+            var p=product(name,"/products/placeholder.svg");p.sourceUrl="https://example.invalid/old-source";
+            service.migrateLegacyAssets(p,"/products/placeholder.svg",p.sourceUrl);service.describe(p);
+            assertEquals("OFFICIAL_VISUAL",p.imageKind);assertTrue(p.image.contains("20261106"));assertTrue(p.imageNote.contains("道具"));
+            p.image="/uploads/administrator-kept.png";service.migrateLegacyAssets(p,"/products/placeholder.svg",p.sourceUrl);service.describe(p);
+            assertEquals("/uploads/administrator-kept.png",p.image);assertEquals("UNREVIEWED",p.imageKind);
+        }
+    }
     @Test void reviewedModelGetsExactImageButChangingImageInvalidatesBadge() throws Exception {
         var service = new CatalogMediaService(mapper);
         var product = product("石头 Qrevo Curv", "/products/real/roborock-g20s.jpeg");

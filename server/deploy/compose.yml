@@ -1,0 +1,92 @@
+# Backend-only deployment. Never publish MySQL or the Java service directly.
+name: robotmall-cloud
+services:
+  database:
+    image: mysql:8.4
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --innodb-buffer-pool-size=128M
+      - --max-connections=40
+      - --performance-schema=OFF
+      - --mysqlx=0
+    environment:
+      MYSQL_DATABASE: robotmall
+      MYSQL_USER: robotmall
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Run bash manage.sh init first}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Run bash manage.sh init first}
+      TZ: Asia/Shanghai
+    volumes:
+      - database:/var/lib/mysql
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql --user="$$MYSQL_USER" --database="$$MYSQL_DATABASE" --execute="SELECT 1" --silent --skip-column-names >/dev/null']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    mem_limit: 768m
+    restart: unless-stopped
+    logging: &logs
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+  backend:
+    build: .
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:mysql://database:3306/robotmall?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+      DB_USERNAME: robotmall
+      DB_PASSWORD: ${DB_PASSWORD:?Run bash manage.sh init first}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?Run bash manage.sh init first}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://chenxiaozao.github.io}
+      AVATAR_DIR: /app/data/avatars
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: https://api.deepseek.com
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      AI_USER_DAILY_LIMIT: ${AI_USER_DAILY_LIMIT:-20}
+      AI_GLOBAL_DAILY_LIMIT: ${AI_GLOBAL_DAILY_LIMIT:-100}
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "8"
+      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "2"
+      # Only use forwarded headers behind the bundled proxy. No public 8080 mapping.
+      SERVER_FORWARD_HEADERS_STRATEGY: native
+      JAVA_TOOL_OPTIONS: -Xms128m -Xmx384m -XX:MaxMetaspaceSize=192m -XX:MaxDirectMemorySize=64m -XX:+ExitOnOutOfMemoryError
+      TZ: Asia/Shanghai
+    volumes:
+      - avatars:/app/data/avatars
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --max-time, "5", http://127.0.0.1:8080/api/health]
+      interval: 20s
+      timeout: 6s
+      retries: 10
+      start_period: 90s
+    mem_limit: 768m
+    init: true
+    restart: unless-stopped
+    logging: *logs
+  gateway:
+    image: caddy:2-alpine
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?Set API_DOMAIN to your real backend hostname}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL for certificate notifications}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - certificates:/data
+      - gateway-config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+    mem_limit: 128m
+    restart: unless-stopped
+    logging: *logs
+volumes:
+  database:
+  avatars:
+  certificates:
+  gateway-config:

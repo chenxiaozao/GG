@@ -1,10 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="720" height="520" viewBox="0 0 720 520">
-<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0d1630"/><stop offset="1" stop-color="#2b6df3"/></linearGradient></defs>
-<rect width="720" height="520" rx="36" fill="url(#g)"/>
-<circle cx="540" cy="180" r="105" fill="#fff" opacity=".16"/><circle cx="540" cy="180" r="68" fill="#fff" opacity=".12"/>
-<rect x="72" y="92" width="92" height="10" rx="5" fill="#70e1f5"/>
-<text x="72" y="205" fill="white" font-family="Arial,sans-serif" font-size="72" font-weight="700">GO2</text>
-<text x="76" y="260" fill="#dce8ff" font-family="Arial,'PingFang SC',sans-serif" font-size="30">四足机器人</text>
-<path d="M470 335h140M500 305v60M580 305v60" stroke="white" stroke-width="18" stroke-linecap="round" opacity=".75"/>
-<circle cx="500" cy="390" r="24" fill="#70e1f5"/><circle cx="580" cy="390" r="24" fill="#70e1f5"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="520" viewBox="0 0 720 520" role="img" aria-label="商品图片暂缺">
+<rect width="720" height="520" rx="24" fill="#eef1f5"/>
+<rect x="265" y="132" width="190" height="160" rx="18" fill="none" stroke="#8491a2" stroke-width="8"/>
+<circle cx="318" cy="183" r="16" fill="#8491a2"/>
+<path d="m280 270 52-52 39 34 29-24 40 42" fill="none" stroke="#8491a2" stroke-width="8" stroke-linejoin="round"/>
+<text x="360" y="360" text-anchor="middle" fill="#526071" font-family="sans-serif" font-size="28">商品图片暂缺</text>
+<text x="360" y="405" text-anchor="middle" fill="#667085" font-family="sans-serif" font-size="20">请以商品名称和参数为准</text>
 </svg>

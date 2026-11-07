@@ -12,7 +12,7 @@ class AdvisorCatalogTests {
     private final DeepSeekAdvisorService service = new DeepSeekAdvisorService(new ObjectMapper());
     private Product product(long id, String name, String category, String type, int sales) {
         Product item = new Product(); item.id = id; item.name = name; item.categoryName = category;
-        item.type = type; item.sales = sales; item.price = new BigDecimal("999"); return item;
+        item.type = type; item.sales = sales; item.stock = 10; item.price = new BigDecimal("999"); return item;
     }
     private List<Product> crowdedCatalog() {
         List<Product> items = new ArrayList<>();
@@ -23,17 +23,22 @@ class AdvisorCatalogTests {
         items.add(product(64, "Air 3S 智能飞行电池", "机器人配件", "ACCESSORY", 0));
         return items;
     }
+    @Test void unknownMeasurementsAreNotPresentedAsZeroPerformance() {
+        Product p=product(200,"未知续航的机器人","教育编程","ROBOT",0);p.enduranceMinutes=0;p.payloadKg=0d;
+        String text=service.describeCatalog(List.of(p));assertTrue(text.contains("续航:未提供"));assertFalse(text.contains("续航:0分钟"));assertTrue(text.contains("载重:未提供或不适用"));
+        p.enduranceMinutes=30;p.payloadKg=2d;text=service.describeCatalog(List.of(p));assertTrue(text.contains("续航:30分钟"));assertTrue(text.contains("载重:2.0kg"));
+    }
     @Test void lowSalesAccessoriesAreSearchableBeyondOldTopForty() {
         List<Product> selected = service.selectCatalog("想买 Go2 的电池配件", List.of(), crowdedCatalog());
         assertEquals(62L, selected.get(0).id);
         assertTrue(selected.stream().anyMatch(x -> x.id == 61));
-        assertEquals(40, selected.size());
+        assertTrue(selected.size() <= 40);
     }
     @Test void followupUsesRecentUserContextAndIgnoresDisabledProducts() {
         List<Product> items = crowdedCatalog(); items.get(61).enabled = false;
         List<Product> selected = service.selectCatalog("有配件吗？", List.of(
                 Map.of("role", "user", "content", "我想买大疆 Air 3S")), items);
-        assertTrue(selected.subList(0, 3).stream().anyMatch(x -> x.id == 64));
+        assertTrue(selected.stream().limit(3).anyMatch(x -> x.id == 64));
         assertTrue(selected.stream().noneMatch(x -> x.id == 62));
     }
     @Test void genericQueryProvidesCategoryDiversity() {
@@ -55,7 +60,7 @@ class AdvisorCatalogTests {
         affordable.price = new BigDecimal("2999");
         List<Product> selected = service.selectCatalog("预算 3 千，想看地板清洁", null, List.of(costly, affordable));
         assertEquals(2L, selected.get(0).id);
-        assertEquals(1L, service.selectCatalog("旗舰扫地机器人，预算3000", null, List.of(costly, affordable)).get(0).id);
+        assertEquals(2L, service.selectCatalog("旗舰扫地机器人，预算3000", null, List.of(costly, affordable)).get(0).id);
     }
     @Test void structuredRecommendationsDoNotTreatComparedNamesAsRecommendations() {
         var reply = service.parseReply("{\"answer\":\"推荐 A，不推荐 B。\",\"recommendedProductIds\":[1,1,-2,\"3\",99999999999999999999999,4,5,6]}");

@@ -8,6 +8,7 @@ const get = async p => (await (await fetch(apiBase + p)).json()).data;
 const login = async (username, password) => (await (await fetch(apiBase + '/auth/login', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})})).json()).data;
 const catalog = await get('/products'), categories = await get('/categories');
 const user = await login('user','123456'), admin = await login('admin','admin123');
+for (const entry of [user, admin]) if (entry.user) { Object.assign(entry, entry.user); delete entry.user; }
 const robot = catalog.find(p => p.name.includes('Curv')) || catalog[0];
 const robot2 = catalog.find(p => p.categoryId === robot.categoryId && p.id !== robot.id);
 const orders = ['PENDING','PAID','SHIPPED','COMPLETED','CANCELLED'].map((status,i)=>({order:{id:9001+i,orderNo:`DEMO20260918${i+1}`,userId:2,status,totalAmount:robot.price,createdAt:'2026-09-18T09:30:00',receiverInfo:'演示收货人，13800000000，广东省广州市天河区演示路1号',logisticsCompany:'演示物流',logisticsNo:'DEMO1001'},items:[{id:9101+i,productId:robot.id,productName:robot.name,price:robot.price,quantity:1,selectedSku:'标准版'}]}));

@@ -3,6 +3,13 @@ import { computed, nextTick, onMounted, ref, watch } from "vue";
 import api from "../api";
 import ProductImage from "../components/ProductImage.vue";
 import UiIcon from "../components/UiIcon.vue";
+import { useRoute } from 'vue-router';
+const route = useRoute();
+import { specs, specValue, specExplanation } from '../productSpecs';
+import { advisorContext } from '../shoppingContext';
+import {useComparison} from '../stores/comparison';
+const comparison=useComparison();
+let initialized=false;
 
 const all = ref<any[]>([]);
 const ids = ref<number[]>([]);
@@ -40,7 +47,7 @@ const parameterKeys = computed(() => {
   const keys: string[] = [];
   products.value.forEach((item) => {
     try {
-      Object.keys(JSON.parse(item.parametersJson || "{}")).forEach((key) => {
+      specs(item).map(s=>s.key).forEach((key) => {
         if (!keys.includes(key)) keys.push(key);
       });
     } catch {
@@ -52,7 +59,7 @@ const parameterKeys = computed(() => {
 
 function productParam(item: any, key: string) {
   try {
-    return JSON.parse(item.parametersJson || "{}")[key] ?? "—";
+    return specValue(item,key);
   } catch {
     return "—";
   }
@@ -113,6 +120,7 @@ watch(
   ids,
   () => {
     products.value = [];
+    if(initialized){comparison.clear();selectedProducts.value.forEach(p=>comparison.toggle(p));}
   },
   { deep: true },
 );
@@ -120,7 +128,17 @@ watch(
 onMounted(async () => {
   try {
     all.value = (await api.get("/products")) as any[];
-    categoryId.value = categories.value[0]?.id || "";
+    const requestedIds=route.query.ids?String(route.query.ids).split(',').map(Number).slice(0,4):comparison.items.map(p=>p.id);
+    const requested = robots.value.find(p => requestedIds.includes(p.id));
+    categoryId.value = requested ? String(requested.categoryId) : categories.value[0]?.id || "";
+    await nextTick();
+    if (requested) {
+      ids.value = robots.value.filter(p=>requestedIds.includes(p.id)&&p.categoryId===requested.categoryId).map(p=>p.id);
+      if(ids.value.length<requestedIds.filter(Boolean).length)message.value='对比只保留同类机器人；配件、不同分类或已下架候选未加入。';
+    }
+    await nextTick();initialized=true;
+    comparison.clear();selectedProducts.value.forEach(p=>comparison.toggle(p));
+    if(ids.value.length>=2)await run();
   } catch (e: any) {
     message.value = e?.message || "商品加载失败";
   }
@@ -137,6 +155,7 @@ onMounted(async () => {
       <div class="compare-heading">
         <div>
           <h1>同类商品参数对比</h1>
+          <router-link v-if="selectedProducts.length" class="text-link" to="/advisor" @click="advisorContext(selectedProducts, '请比较这些候选机器人，说明差异对实际使用的影响和各自不足。请先问我预算与场景，不要默认数字大就更好。')">让 AI 帮我理解这些差异 →</router-link>
           <p>先选择分类，再选择 2～4 款商品；不同分类不会被混在一张表中。</p>
         </div>
         <div class="compare-rule">
@@ -201,8 +220,7 @@ onMounted(async () => {
               ><b>{{ item.name }}</b
               ><em>¥{{ formatPrice(item.price) }}</em
               ><small
-                >★ {{ Number(item.rating || 0).toFixed(1) }} · 已售
-                {{ item.sales }}</small
+                >{{ item.categoryName }}</small
               ></span
             >
           </label>
@@ -213,7 +231,7 @@ onMounted(async () => {
       <section v-if="products.length" class="compare-result">
         <div class="compare-result-title">
           <div>
-            <span>COMPARISON</span>
+            <span>同类商品参数</span>
             <h2>{{ products[0].categoryName }}对比结果</h2>
           </div>
           <p><i></i>强调底色表示该行存在差异</p>
@@ -260,9 +278,9 @@ onMounted(async () => {
                 </td>
               </tr>
               <tr :class="{ difference: isDifferent('rating', 'field') }">
-                <th>用户评分</th>
+                <th>评分</th>
                 <td v-for="item in products" :key="item.id">
-                  ★ {{ Number(item.rating || 0).toFixed(1) }}
+                  {{ Number(item.rating) > 0 ? `★ ${Number(item.rating).toFixed(1)}` : '暂无评分' }}
                 </td>
               </tr>
               <tr
@@ -270,7 +288,7 @@ onMounted(async () => {
                 :key="key"
                 :class="{ difference: isDifferent(key) }"
               >
-                <th>{{ key }}</th>
+                <th>{{ key }}<details><summary>如何理解</summary><small>{{ specExplanation(key) }}</small></details></th>
                 <td v-for="item in products" :key="item.id">
                   {{ productParam(item, key) }}
                 </td>

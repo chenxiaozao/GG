@@ -7,10 +7,12 @@ const apiUrl = process.env.AUDIT_API_URL || "http://127.0.0.1:8080/api";
 const output = path.resolve("../tmp/ai-live-audit");
 await mkdir(output, { recursive: true });
 const results = [];
+const auditToken = process.env.AUDIT_TOKEN;
+if (!auditToken) throw new Error('真实AI检查需显式设置 AUDIT_TOKEN（不在命令输出中打印）；会消耗额度，不自动登录演示账号。');
 async function request(endpoint, payload) {
   const response = await fetch(apiUrl + endpoint, {
     method: payload ? "POST" : "GET",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-Token": auditToken },
     body: payload ? JSON.stringify(payload) : undefined,
     signal: AbortSignal.timeout(45000),
   });

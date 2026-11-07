@@ -147,7 +147,7 @@ function formatPrice(value: unknown) {
     <div class="container">
       <div class="breadcrumb"><router-link to="/">首页</router-link><span>›</span><span>以旧换新</span></div>
       <section class="trade-hero">
-        <div><span>TRADE-IN SERVICE</span><h1>旧机器人残值评估</h1><p>从商城型号库快速定位设备，也支持未收录机型手动填写。原价、机龄和设备状态共同参与估值。</p></div>
+        <div><span>设备换新参考</span><h1>旧机器人残值评估</h1><p>从商城型号库快速定位设备，也支持未收录机型手动填写。原价、机龄和设备状态共同参与估值。</p></div>
         <div class="trade-steps"><span class="active"><b>1</b>选择设备</span><i></i><span><b>2</b>状态评估</span><i></i><span><b>3</b>查看估价</span></div>
       </section>
 

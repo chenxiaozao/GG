@@ -9,6 +9,7 @@ const login = await fetch("http://127.0.0.1:8080/api/auth/login", {
   body: JSON.stringify({ username: "user", password: "123456" }),
 }).then((r) => r.json());
 assert.equal(login.code, 200);
+if (login.data.user) login.data = { ...login.data.user, token: login.data.token };
 const products = await fetch("http://127.0.0.1:8080/api/products").then((r) =>
   r.json(),
 );

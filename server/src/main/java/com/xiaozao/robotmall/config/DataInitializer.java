@@ -256,6 +256,16 @@ public class DataInitializer implements CommandLineRunner {
             new ProductSeed("CyberPi 创新扩展套件", "mBot2 传感器与执行器扩展", "499", "599", "/products/sensor.svg", "机器人配件", "Makeblock", "ACCESSORY", 0, 0, "HIGH", "包含超声波、触摸、滑杆、舵机、电机与灯带等模块，用于 AIoT 和 Python 项目。", "{\"包含\":\"传感器/舵机/电机/灯带\",\"适配型号\":\"CyberPi/mBot2\",\"编程方式\":\"图形化/Python\",\"配件类型\":\"教育扩展\"}", 236, 4.8, 74, "创新扩展套装", "https://www.makeblock.com/products/cyberpi-innovation-add-on-pack", accessoryWarranty, inStock)
         ));
 
+        // Sparse consumer categories: published capabilities only. Zero endurance means
+        // no verified duration, not an inferred battery-performance promise.
+        catalog.addAll(List.of(
+            new ProductSeed("Sphero Mini", "球形入门编程机器人", "499", "499", "/products/placeholder.svg", "教育编程", "Sphero", "ROBOT", 45, 0, "MEDIUM", "通过 Sphero Edu 学习编程，也可在 Sphero Play 中体验遥控游戏。价格为课程演示设定，不代表官网报价。", "{\"编程方式\":\"Draw/Blocks/JavaScript\",\"续航时间\":\"约45分钟\",\"控制方式\":\"Sphero Play/Sphero Edu\",\"使用提示\":\"8岁以下建议成人监督\"}", 0, 0, 30, "基础版", "https://sphero.com/products/sphero-mini", "演示售后，以品牌当地政策为准", inStock),
+            new ProductSeed("Sphero indi", "无屏色卡编程机器人", "999", "999", "/products/placeholder.svg", "教育编程", "Sphero", "ROBOT", 0, 0, "MEDIUM", "利用颜色卡规划移动路线，可从无屏学习过渡到 Sphero Edu Jr 积木编程。价格为课程演示设定。", "{\"编程方式\":\"色卡/图形化\",\"传感器\":\"颜色传感器\",\"控制方式\":\"色卡/Sphero Edu Jr\",\"学习方式\":\"无屏启蒙\"}", 0, 0, 30, "基础套装", "https://sphero.com/collections/indi", "演示售后，以品牌当地政策为准", inStock),
+            new ProductSeed("Makeblock mBot Ranger", "三合一搭建编程机器人", "1199", "1199", "/products/placeholder.svg", "教育编程", "Makeblock", "ROBOT", 0, 0, "HIGH", "可搭建履带车、三轮赛车和自平衡车，支持 mBlock 与 Arduino C。价格为课程演示设定。", "{\"编程方式\":\"图形化/Arduino C\",\"结构形式\":\"三合一搭建\",\"控制方式\":\"Makeblock App\",\"扩展能力\":\"Makeblock结构件扩展\"}", 0, 0, 30, "基础套装", "https://www.makeblock.com/products/buy-mbot-ranger", "演示售后，以品牌当地政策为准", inStock),
+            new ProductSeed("Makeblock Codey Rocky", "互动式图形化编程机器人", "799", "799", "/products/placeholder.svg", "教育编程", "Makeblock", "ROBOT", 0, 0, "MEDIUM", "集成声音、光线、姿态与红外传感器，可体验感知、动作和图形化编程。价格为课程演示设定。", "{\"编程方式\":\"图形化/Python\",\"传感器\":\"声音/光线/陀螺仪/加速度/红外\",\"显示系统\":\"LED矩阵\",\"控制方式\":\"Makeblock App\"}", 0, 0, 30, "基础套装", "https://www.makeblock.com/products/buy-codey-rocky", "演示售后，以品牌当地政策为准", inStock),
+            new ProductSeed("Enabot EBO SE", "入门移动家庭看护机器人", "699", "699", "/products/placeholder.svg", "陪伴娱乐", "Enabot", "ROBOT", 0, 0, "MEDIUM", "通过 App 控制移动、查看家中画面并双向通话。此条目为原 EBO SE 1080P 型号，不是 SE 2。价格为课程演示设定。", "{\"摄像头\":\"1080P\",\"控制方式\":\"App遥控\",\"交互方式\":\"双向语音\",\"使用场景\":\"家庭/宠物远程看护\"}", 0, 0, 30, "原版SE", "https://www.enabot.com/home-robot/ebo-se", "演示售后，以品牌当地政策为准", inStock),
+            new ProductSeed("Enabot EBO Air", "宠物互动移动看护机器人", "1299", "1299", "/products/placeholder.svg", "陪伴娱乐", "Enabot", "ROBOT", 0, 0, "MEDIUM", "提供移动远程看护、1080P 视频与语音互动。此条目对应原 EBO Air，不是 Air 2 系列。价格为课程演示设定。", "{\"摄像头\":\"1080P\",\"控制方式\":\"App遥控\",\"交互方式\":\"双向语音\",\"使用场景\":\"家庭/宠物远程看护\"}", 0, 0, 30, "原版Air", "https://www.enabot.com/home-robot/ebo-air", "演示售后，以品牌当地政策为准", inStock)
+        ));
         Map<String, Product> existing = products.findAll().stream()
                 .collect(Collectors.toMap(x -> x.name, Function.identity(), (a, z) -> a));
         for (ProductSeed seed : catalog) addProduct(seed, c, b, existing);

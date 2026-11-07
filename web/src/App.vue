@@ -6,6 +6,11 @@ import { useThemeStore } from "./stores/theme";
 import { useRoute, useRouter } from "vue-router";
 import UiIcon from "./components/UiIcon.vue";
 import AccountNavigation from "./components/AccountNavigation.vue";
+import { backendState, retryBackend } from './offlineCatalog';
+import {useComparison} from './stores/comparison';
+const comparison=useComparison();
+const connectionMessage = ref('');
+async function reconnect() { try { connectionMessage.value=''; await retryBackend(); } catch { connectionMessage.value='后端仍未连接，请确认服务已经启动'; } }
 const a = useAuthStore(),
   r = useRouter(),
   route = useRoute(),
@@ -53,7 +58,7 @@ function scrollTop() {
 theme.initialize(a.user);
 watch(
   () => a.user?.id,
-  () => theme.initialize(a.user),
+  () => {theme.initialize(a.user);comparison.clear();},
 );
 watch(
   () => route.fullPath,
@@ -71,13 +76,22 @@ onBeforeUnmount(() => {
   window.removeEventListener("scroll", updateScroll);
   window.removeEventListener("keydown", accountKeyboard);
 });
-function logout() {
-  a.logout();
-  r.push("/");
+async function logout() {
+  try { await a.logout(); await r.push("/"); }
+  catch {
+    if (window.confirm('无法确认服务端是否已退出。是否只清除本机登录？这不能保证服务端凭证已撤销，恢复连接后请核对。')) {
+      a.clearSession(); await r.push('/login');
+    }
+  }
 }
 </script>
 <template>
-  <div :class="['app-shell', 'experience-shell', { 'personal-workspace': personalPage, 'shopping-workspace': !personalPage }]">
+  <div v-if="backendState.offline" class="offline-notice" role="status">
+    <span>后端未开启，当前为只读目录快照（{{ backendState.snapshotAt.slice(0,10) }}）。价格、库存不实时；账号、交易、评价、适配与 AI 需连接后端。</span>
+    <button type="button" @click="reconnect" :disabled="backendState.checking">{{ backendState.checking ? '检查中…' : '重新连接' }}</button>
+    <span v-if="connectionMessage">{{ connectionMessage }}</span>
+  </div>
+  <div :class="['app-shell', 'experience-shell', { 'personal-workspace': personalPage, 'shopping-workspace': !personalPage, 'has-comparison-tray': route.path!=='/compare' && comparison.items.length>0 }]">
     <div :class="['site-chrome', { scrolled }]">
       <header class="site-header">
         <div class="header-inner">
@@ -155,6 +169,7 @@ function logout() {
         @close="accountMenuOpen = false"
       />
       <main class="workspace-content" id="page-content">
+        <p v-if="comparison.message" class="notice" role="status">{{ comparison.message }}</p>
         <router-view v-slot="{ Component, route: viewRoute }"
           ><transition name="page-shift" mode="out-in"
             ><component :is="Component" :key="viewRoute.path" /></transition
@@ -172,6 +187,7 @@ function logout() {
         <UiIcon name="arrow" :size="20" /><small>返回顶部</small>
       </button></transition
     >
+    <section v-if="comparison.items.length && route.path!=='/compare'" class="comparison-tray" aria-label="待对比商品"><div class="comparison-tray-heading"><strong>商品对比 · {{ comparison.items.length }}/4</strong><span>选同类商品，再开始对比</span><button type="button" @click="comparison.clear()">清空</button></div><ul><li v-for="p in comparison.items" :key="p.id"><span>{{ p.name }}</span><button type="button" :aria-label="`移除对比 ${p.name}`" @click="comparison.remove(p.id)">×</button></li></ul><button type="button" class="btn" :disabled="comparison.items.length<2" @click="r.push({path:'/compare',query:{ids:comparison.items.map(p=>p.id).join(',')}})">开始对比（{{ comparison.items.length }}）</button><p v-if="comparison.message" role="status">{{ comparison.message }}</p></section>
     <footer class="site-footer">
       <div>
         <div>
@@ -191,6 +207,7 @@ function logout() {
         </div>
       </div>
       <p>© 2026 小造智械机器人垂直电商平台 · 毕业设计非商业演示</p>
+      <details class="platform-notice"><summary>平台使用说明</summary><p>本平台用于课程与毕业设计，商品价格、库存、销量、评分、支付和配送流程为模拟数据，不收取真实款项，不提供实际商品交易承诺。图片中的道具不代表所选配置包含。</p></details>
     </footer>
   </div>
 </template>

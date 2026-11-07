@@ -12,6 +12,7 @@ const response = await fetch("http://127.0.0.1:8080/api/auth/login", {
 });
 const login = await response.json();
 assert.equal(login.code, 200);
+if (login.data.user) login.data = { ...login.data.user, token: login.data.token };
 const { browser, shutdown } = await launchAuditBrowser({
   headless: true,
   executablePath:
