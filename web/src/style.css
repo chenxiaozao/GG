@@ -1,3 +1,4 @@
+/** 商城公共外观与主要页面布局。 */
 /* Shared foundations and page fallbacks. Retired V1 home/admin selectors removed;
    current design-system, service-pages and interface-layouts load after this file. */
 :root {

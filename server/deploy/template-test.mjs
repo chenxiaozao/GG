@@ -1,3 +1,4 @@
+/** 验证部署模板生成的环境配置及安全边界。 */
 // Isolated temporary fixture only. Never initializes the real deployment directory.
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';

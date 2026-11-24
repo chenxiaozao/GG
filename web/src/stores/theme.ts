@@ -2,9 +2,12 @@ import { defineStore } from "pinia";
 import api from "../api";
 import { contrastText, readableAccent } from "../utils/colors";
 
+/** 定义用户可选的主题名称。 */
 export type ThemeName = "classic" | "midnight" | "warm" | "custom";
+/** 定义用户可选的界面布局。 */
 export type InterfaceLayout = "standard" | "editorial" | "compact";
 
+/** 描述配色和布局偏好。 */
 type ThemePreference = {
   theme: ThemeName;
   accentColor: string;
@@ -26,12 +29,14 @@ const presets: Record<Exclude<ThemeName, "custom">, ThemePreference> = {
   warm: { theme: "warm", accentColor: "#c65d32", backgroundColor: "#f7f1e7" },
 };
 
+/** 检查颜色值是否符合要求。 */
 function validColor(value: unknown, fallback: string) {
   return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value)
     ? value
     : fallback;
 }
 
+/** 管理前端主题及服务端同步。 */
 export const useThemeStore = defineStore("theme", {
   state: (): ThemePreference & { saving: boolean } => ({
     theme: "classic",
@@ -41,6 +46,7 @@ export const useThemeStore = defineStore("theme", {
     saving: false,
   }),
   actions: {
+    /** 向页面应用当前配色和布局。 */
     apply() {
       const root = document.documentElement;
       root.dataset.theme = this.theme;
@@ -78,6 +84,7 @@ export const useThemeStore = defineStore("theme", {
         }),
       );
     },
+    /** 从用户偏好或本地设置初始化外观。 */
     initialize(user?: any) {
       let local: Partial<ThemePreference> = {};
       try {
@@ -95,10 +102,15 @@ export const useThemeStore = defineStore("theme", {
       );
       this.backgroundColor = validColor(
         user?.backgroundColor || local.backgroundColor,
-        presets[this.theme === "custom" ? "classic" : this.theme].backgroundColor,
+        presets[this.theme === "custom" ? "classic" : this.theme]
+          .backgroundColor,
       );
       // Upgrade only the old standard preset; keep deliberate custom colors intact.
-      if (this.theme === 'classic' && this.accentColor === '#d9363e' && this.backgroundColor === '#f5f6f8') {
+      if (
+        this.theme === "classic" &&
+        this.accentColor === "#d9363e" &&
+        this.backgroundColor === "#f5f6f8"
+      ) {
         Object.assign(this, presets.classic);
       }
       const layout = user
@@ -111,12 +123,14 @@ export const useThemeStore = defineStore("theme", {
         : "standard";
       this.apply();
     },
+    /** 切换预设主题。 */
     async select(theme: ThemeName) {
       this.theme = theme;
       if (theme !== "custom") Object.assign(this, presets[theme]);
       this.apply();
       await this.sync();
     },
+    /** 保存自定义颜色。 */
     async customize(accentColor: string, backgroundColor: string) {
       this.theme = "custom";
       this.accentColor = validColor(accentColor, "#d9363e");
@@ -124,16 +138,19 @@ export const useThemeStore = defineStore("theme", {
       this.apply();
       await this.sync();
     },
+    /** 切换界面布局。 */
     async selectLayout(layout: InterfaceLayout) {
       this.interfaceLayout = layout;
       this.apply();
       await this.sync();
     },
+    /** 重置用户外观偏好。 */
     async reset() {
       Object.assign(this, presets.classic);
       this.apply();
       await this.sync();
     },
+    /** 将外观设置同步到账号。 */
     async sync() {
       if (!localStorage.getItem("token")) return;
       this.saving = true;

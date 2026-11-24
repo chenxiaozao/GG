@@ -8,17 +8,20 @@ import com.xiaozao.robotmall.common.BizException;
 import com.xiaozao.robotmall.entity.User;
 import com.xiaozao.robotmall.repository.UserRepository;
 
+/** 管理账户密码、会话及个人资料。 */
 @Service
 public class AuthService {
 
     private final UserRepository users;
     private final PasswordEncoder encoder;
 
+    /** 初始化当前对象及其依赖。 */
     public AuthService(UserRepository users, PasswordEncoder encoder) {
         this.users = users;
         this.encoder = encoder;
     }
 
+    /** 对比密码散列并发放有期限的会话。 */
     public User login(String username, String password) {
         User u = users.findByUsername(username).orElseThrow(() -> new BizException("用户名或密码错误"));
         if (!encoder.matches(password, u.password)) {
@@ -33,6 +36,7 @@ public class AuthService {
         return u;
     }
 
+    /** 校验注册资料并保存带密码散列的新账号。 */
     public User register(String username, String password, String nickname) {
         if (username == null || !username.matches("[A-Za-z0-9_]{3,30}"))
             throw new BizException("用户名须为 3 至 30 位字母、数字或下划线");
@@ -51,10 +55,14 @@ public class AuthService {
         u.nickname = nickname;
         u.role = "USER";
         u.createTime = LocalDateTime.now();
-        try { return users.save(u); }
-        catch (org.springframework.dao.DataIntegrityViolationException duplicate) { throw new BizException("用户名已存在，请更换用户名"); }
+        try {
+            return users.save(u);
+        } catch (org.springframework.dao.DataIntegrityViolationException duplicate) {
+            throw new BizException("用户名已存在，请更换用户名");
+        }
     }
 
+    /** 按令牌查找账号并校验启用状态和有效期。 */
     public User current(String token) {
         User u = users.findByToken(token).orElseThrow(() -> new BizException("登录已过期"));
         if (!u.enabled) {
@@ -66,27 +74,35 @@ public class AuthService {
         return u;
     }
 
+    /** 更新用户可维护的个人资料。 */
     public User updateProfile(User u, String nickname, String phone, String email, String avatar) {
         String cleanNickname = nickname == null ? "" : nickname.trim();
         String cleanPhone = phone == null ? "" : phone.trim();
         String cleanEmail = email == null ? "" : email.trim();
         String cleanAvatar = avatar == null ? "" : avatar.trim();
-        if (cleanNickname.isBlank() || cleanNickname.length() > 30) throw new BizException("昵称须为 1 至 30 个字符");
-        if (!cleanPhone.isBlank() && !cleanPhone.matches("^1[3-9]\\d{9}$")) throw new BizException("请输入正确的手机号码");
-        if (!cleanEmail.isBlank() && !cleanEmail.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) throw new BizException("请输入正确的邮箱地址");
+        if (cleanNickname.isBlank() || cleanNickname.length() > 30)
+            throw new BizException("昵称须为 1 至 30 个字符");
+        if (!cleanPhone.isBlank() && !cleanPhone.matches("^1[3-9]\\d{9}$"))
+            throw new BizException("请输入正确的手机号码");
+        if (!cleanEmail.isBlank() && !cleanEmail.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"))
+            throw new BizException("请输入正确的邮箱地址");
         if (cleanAvatar.length() > 500) throw new BizException("头像地址过长");
         u.nickname = cleanNickname;
-        if (!java.util.Objects.equals(u.phone,cleanPhone)) u.phoneVerified=false;
+        if (!java.util.Objects.equals(u.phone, cleanPhone)) u.phoneVerified = false;
         u.phone = cleanPhone;
         u.email = cleanEmail;
         u.avatar = cleanAvatar;
         return users.save(u);
     }
 
+    /** 验证旧密码后保存新散列并使现有会话失效。 */
     public void changePassword(User u, String oldPassword, String newPassword) {
-        if (oldPassword == null || !encoder.matches(oldPassword, u.password)) throw new BizException("原密码不正确");
-        if (newPassword == null || newPassword.length() < 8 || newPassword.length() > 64) throw new BizException("新密码须为 8 至 64 个字符");
-        if (newPassword.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72) throw new BizException("密码的UTF-8长度不能超过72字节");
+        if (oldPassword == null || !encoder.matches(oldPassword, u.password))
+            throw new BizException("原密码不正确");
+        if (newPassword == null || newPassword.length() < 8 || newPassword.length() > 64)
+            throw new BizException("新密码须为 8 至 64 个字符");
+        if (newPassword.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72)
+            throw new BizException("密码的UTF-8长度不能超过72字节");
         if (oldPassword.equals(newPassword)) throw new BizException("新密码不能与原密码相同");
         u.password = encoder.encode(newPassword);
         u.mustChangePassword = false;
@@ -95,11 +111,14 @@ public class AuthService {
         users.save(u);
     }
 
+    /** 清除令牌与有效期以结束会话。 */
     public void logout(String token) {
-        users.findByToken(token).ifPresent(u -> {
-            u.token = null;
-            u.tokenExpire = null;
-            users.save(u);
-        });
+        users.findByToken(token)
+                .ifPresent(
+                        u -> {
+                            u.token = null;
+                            u.tokenExpire = null;
+                            users.save(u);
+                        });
     }
 }

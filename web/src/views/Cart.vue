@@ -24,11 +24,17 @@ const selectedAddressId = ref("");
 const addressError = ref("");
 const addressLoading = ref(false);
 const addressesInitialized = ref(false);
+const tradeInCredits = ref<{ id: number; remainingAmount: number }[]>([]);
+const useTradeInCredit = ref(true);
+const creditError = ref("");
+const creditLoading = ref(false);
+/** 查找结算时选定的收货地址。 */
 const selectedAddress = computed(() =>
   addresses.value.find((a) => String(a.id) === selectedAddressId.value),
 );
 const submitting = ref(false);
 const mutating = ref(false);
+/** 标识当前无法下单的明细。 */
 const unavailable = computed(() =>
   items.value.some(
     (item) =>
@@ -36,6 +42,7 @@ const unavailable = computed(() =>
       Number(item.product?.stock || 0) < Number(item.quantity),
   ),
 );
+/** 汇总购物车展示金额。 */
 const total = computed(() =>
   items.value.reduce(
     (sum, item) =>
@@ -44,6 +51,44 @@ const total = computed(() =>
   ),
 );
 
+/** 找到本人可用的旧机折价，默认计入结算，用户可以取消。 */
+const chosenCredit = computed(() =>
+  useTradeInCredit.value ? tradeInCredits.value[0] : undefined,
+);
+
+/** 按分预览折价，商品金额可被全部抵掉，实际金额以服务端为准。 */
+const previewDiscount = computed(() => {
+  const eligibleCents = items.value.reduce(
+    (sum, item) =>
+      sum +
+      Math.round(Number(item.product?.price ?? 0) * 100) *
+        Number(item.quantity),
+    0,
+  );
+  const faceValue = Math.round(
+    Number(chosenCredit.value?.remainingAmount ?? 0) * 100,
+  );
+  return Math.min(faceValue, eligibleCents) / 100;
+});
+
+/** 刷新当前账号的旧机折价余额。 */
+async function loadCredits() {
+  if (!auth.logged || creditLoading.value) return;
+  creditLoading.value = true;
+  creditError.value = "";
+  try {
+    tradeInCredits.value = (await api.get(
+      "/trade-in/credits",
+    )) as typeof tradeInCredits.value;
+  } catch {
+    tradeInCredits.value = [];
+    creditError.value = "旧机折价余额暂时无法加载，不影响普通下单。";
+  } finally {
+    creditLoading.value = false;
+  }
+}
+
+/** 加载当前账号的收货地址选项。 */
 async function loadAddresses() {
   if (!auth.logged) return;
   addressLoading.value = true;
@@ -69,6 +114,7 @@ async function loadAddresses() {
   }
 }
 
+/** 读取账号或访客购物车。 */
 async function load() {
   loading.value = true;
   loadError.value = "";
@@ -97,6 +143,7 @@ async function load() {
   }
 }
 
+/** 更改指定明细的购物数量。 */
 async function update(item: any) {
   if (mutating.value || submitting.value || loading.value) return;
   const stock = Number(item.product?.stock || 0);
@@ -119,6 +166,7 @@ async function update(item: any) {
     mutating.value = false;
   }
 }
+/** 在数量允许范围内执行加减。 */
 function stepQuantity(item: any, delta: number) {
   if (
     loading.value ||
@@ -135,6 +183,7 @@ function stepQuantity(item: any, delta: number) {
   update(item);
 }
 
+/** 从购物车移除一条明细。 */
 async function remove(item: any) {
   if (mutating.value || submitting.value || loading.value) return;
   mutating.value = true;
@@ -150,6 +199,7 @@ async function remove(item: any) {
   }
 }
 
+/** 清空当前购物车。 */
 async function clearAll() {
   if (mutating.value || submitting.value || loading.value) return;
   if (
@@ -175,12 +225,14 @@ async function clearAll() {
   }
 }
 
+/** 校验结算信息并向服务端创建订单。 */
 async function createOrder() {
   if (
     submitting.value ||
     loading.value ||
     mutating.value ||
-    addressLoading.value
+    addressLoading.value ||
+    creditLoading.value
   )
     return;
   if (!auth.logged) {
@@ -200,24 +252,35 @@ async function createOrder() {
     const payload = selectedAddress.value
       ? { addressId: Number(selectedAddressId.value) }
       : { receiverInfo: receiverInfo.value.trim() };
-    const order: any = await api.post("/orders", payload);
+    if (chosenCredit.value && previewDiscount.value <= 0) {
+      message.value = "当前没有可抵扣的商品金额。";
+      return;
+    }
+    const order: any = await api.post("/orders", {
+      ...payload,
+      ...(chosenCredit.value ? { tradeInCreditId: chosenCredit.value.id } : {}),
+    });
     message.value = `订单 ${order.orderNo} 创建成功`;
     await load();
   } catch (e: any) {
     message.value = e?.message || "创建订单失败";
   } finally {
+    await loadCredits();
     submitting.value = false;
   }
 }
 
+/** 商品图失败时显示占位图。 */
 function imageFallback(event: Event) {
   const image = event.target as HTMLImageElement;
-  if (!image.src.endsWith('/products/placeholder.svg')) image.src = resourceUrl();
+  if (!image.src.endsWith("/products/placeholder.svg"))
+    image.src = resourceUrl();
 }
 
 onMounted(() => {
   load();
   loadAddresses();
+  loadCredits();
 });
 </script>
 
@@ -398,9 +461,42 @@ onMounted(() => {
             </button>
           </div>
         </template>
+        <div v-if="auth.logged" class="trade-credit-choice">
+          <label v-if="tradeInCredits.length">
+            <input
+              v-model="useTradeInCredit"
+              type="checkbox"
+              :disabled="submitting"
+            />
+            使用旧机折价（可用 ¥{{
+              Number(tradeInCredits[0].remainingAmount).toFixed(2)
+            }}）
+          </label>
+          <p v-else-if="creditLoading" role="status">正在读取旧机折价…</p>
+          <p v-else-if="creditError" role="status">
+            {{ creditError }}
+            <button type="button" class="text-action" @click="loadCredits">
+              重试
+            </button>
+          </p>
+          <router-link v-else to="/trade-in"
+            >暂无旧机折价，去估价 →</router-link
+          >
+          <p v-if="chosenCredit && previewDiscount > 0">
+            本次抵扣后预计剩余 ¥{{
+              (Number(chosenCredit.remainingAmount) - previewDiscount).toFixed(
+                2,
+              )
+            }}， 余额不提现，可在有效期内继续抵扣。
+          </p>
+        </div>
+        <div v-if="chosenCredit" class="cart-total">
+          <span>商品原价 ¥{{ total.toFixed(2) }}</span>
+          <strong>换购抵扣 −¥{{ previewDiscount.toFixed(2) }}</strong>
+        </div>
         <div class="cart-total">
           <span>共 {{ items.length }} 项商品</span
-          ><strong>¥{{ total.toFixed(2) }}</strong>
+          ><strong>应付 ¥{{ (total - previewDiscount).toFixed(2) }}</strong>
         </div>
         <button
           class="btn"
@@ -408,6 +504,7 @@ onMounted(() => {
             loading ||
             mutating ||
             addressLoading ||
+            creditLoading ||
             submitting ||
             (auth.logged && unavailable)
           "
@@ -439,3 +536,15 @@ onMounted(() => {
     />
   </div>
 </template>
+
+<style scoped>
+.trade-credit-choice {
+  display: grid;
+  gap: 8px;
+  margin-block: 16px;
+}
+
+.trade-credit-choice p {
+  margin: 0;
+}
+</style>

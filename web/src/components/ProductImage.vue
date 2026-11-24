@@ -18,11 +18,13 @@ const props = withDefaults(
 );
 const emit = defineEmits<{ unavailable: [value: boolean] }>();
 const failed = ref(false);
+/** 解析商品图的实际地址并兼顾占位图。 */
 const source = computed(() =>
   failed.value || !props.product.image
     ? resourceUrl()
     : resourceUrl(props.product.image),
 );
+/** 根据媒体分类返回来源标签。 */
 const label = computed(() => {
   if (failed.value || !props.product.image) return "图片暂缺";
   if (props.product.imageKind === "REFERENCE") return "参考图";
@@ -41,6 +43,7 @@ watch(
     emit("unavailable", !props.product.image);
   },
 );
+/** 图片加载失败时切换到备用图。 */
 function onError() {
   // Stop after one fallback, even if the placeholder itself cannot be loaded.
   if (failed.value) return;

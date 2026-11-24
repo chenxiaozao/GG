@@ -1,3 +1,4 @@
+# 运行前后端构建和自动检查。
 name: Frontend and backend checks
 on:
   push:

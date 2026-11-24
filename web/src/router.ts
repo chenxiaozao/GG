@@ -1,10 +1,15 @@
-import { createRouter, createWebHistory, createWebHashHistory } from "vue-router";
+import {
+  createRouter,
+  createWebHistory,
+  createWebHashHistory,
+} from "vue-router";
 import Home from "./views/Home.vue";
 
 const router = createRouter({
-  history: import.meta.env.VITE_ROUTER_MODE === "hash"
-    ? createWebHashHistory(import.meta.env.BASE_URL)
-    : createWebHistory(import.meta.env.BASE_URL),
+  history:
+    import.meta.env.VITE_ROUTER_MODE === "hash"
+      ? createWebHashHistory(import.meta.env.BASE_URL)
+      : createWebHistory(import.meta.env.BASE_URL),
   routes: [
     { path: "/", component: Home },
     { path: "/products", component: () => import("./views/Products.vue") },
@@ -45,6 +50,7 @@ const router = createRouter({
     },
     { path: "/:pathMatch(.*)*", redirect: "/" },
   ],
+  /** 按目标路由、页面片段或浏览历史恢复滚动位置。 */
   scrollBehavior(to, _from, savedPosition) {
     if (savedPosition) return savedPosition;
     // Profile hashes select panels, not anchors in a long settings document.
@@ -57,8 +63,16 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   let user: any = null;
-  try { user = JSON.parse(localStorage.getItem("user") || "null"); } catch { localStorage.removeItem('user'); }
-  if (user?.mustChangePassword && (to.path!=='/profile' || to.hash!=='#security')) return {path:'/profile',hash:'#security'};
+  try {
+    user = JSON.parse(localStorage.getItem("user") || "null");
+  } catch {
+    localStorage.removeItem("user");
+  }
+  if (
+    user?.mustChangePassword &&
+    (to.path !== "/profile" || to.hash !== "#security")
+  )
+    return { path: "/profile", hash: "#security" };
   if (to.meta.requiresAuth && !user)
     return { path: "/login", query: { redirect: to.fullPath } };
   if (to.meta.requiresAdmin && user?.role !== "ADMIN")

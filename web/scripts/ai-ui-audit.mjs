@@ -1,3 +1,4 @@
+/** 用模拟接口检查选购对话界面和推荐结果展示。 */
 import { launchAuditBrowser } from "./audit-browser.mjs";
 import assert from "node:assert/strict";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
@@ -143,9 +144,14 @@ try {
     ),
   );
   const cleanup = await shutdown();
-  const saved = JSON.parse(await readFile(path.join(output, "report.json"), "utf8"));
+  const saved = JSON.parse(
+    await readFile(path.join(output, "report.json"), "utf8"),
+  );
   saved.browserCleanup = cleanup;
-  await writeFile(path.join(output, "report.json"), JSON.stringify(saved, null, 2));
+  await writeFile(
+    path.join(output, "report.json"),
+    JSON.stringify(saved, null, 2),
+  );
 }
 console.log(
   JSON.stringify({

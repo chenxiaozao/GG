@@ -1,3 +1,4 @@
+/** 按钮和数量步进器等交互控件。 */
 /* Canonical interaction geometry. Loaded last, after historical layout presets. */
 .experience-shell .workspace-content .quantity-stepper {
   display: inline-grid;

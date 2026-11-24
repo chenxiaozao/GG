@@ -1,3 +1,4 @@
+/** 执行一轮商城主要界面的视觉与交互检查。 */
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { launchAuditBrowser } from "./audit-browser.mjs";
@@ -9,7 +10,8 @@ const login = await fetch("http://127.0.0.1:8080/api/auth/login", {
   body: JSON.stringify({ username: "user", password: "123456" }),
 }).then((r) => r.json());
 assert.equal(login.code, 200);
-if (login.data.user) login.data = { ...login.data.user, token: login.data.token };
+if (login.data.user)
+  login.data = { ...login.data.user, token: login.data.token };
 const products = await fetch("http://127.0.0.1:8080/api/products").then((r) =>
   r.json(),
 );

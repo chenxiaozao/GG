@@ -60,6 +60,7 @@ for (const viewport of variants) {
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
+    /** 执行该脚本的一组断言并记录结果。 */
     async function check(name, run) {
       try {
         await run();
@@ -114,12 +115,14 @@ for (const viewport of variants) {
           canvas.width = canvas.height = 1;
           const context = canvas.getContext("2d");
           // CSS color-mix may serialize as color(srgb ...), not rgb(...).
+          /** 取得颜色的 RGB 通道。 */
           const rgb = (color) => {
             context.clearRect(0, 0, 1, 1);
             context.fillStyle = color;
             context.fillRect(0, 0, 1, 1);
             return [...context.getImageData(0, 0, 1, 1).data].slice(0, 3);
           };
+          /** 计算颜色的相对亮度。 */
           const luminance = (values) =>
             values
               .map((value) => {
@@ -191,6 +194,7 @@ for (const viewport of variants) {
     await check("broken-image-falls-back-once", async () => {
       const asset = assets[0];
       let attempts = 0;
+      /** 生成定位被检验素材的匹配条件。 */
       const matcher = (url) =>
         url.pathname === asset.image ||
         url.pathname === "/products/placeholder.svg";
@@ -229,7 +233,10 @@ await writeFile(
   JSON.stringify(report, null, 2),
 );
 report.browserCleanup = await shutdown();
-await writeFile(path.join(output, "report.json"), JSON.stringify(report, null, 2));
+await writeFile(
+  path.join(output, "report.json"),
+  JSON.stringify(report, null, 2),
+);
 const failures = results.filter((item) => !item.passed);
 console.log(
   JSON.stringify(

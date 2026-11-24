@@ -3,13 +3,13 @@ import { computed, nextTick, onMounted, ref, watch } from "vue";
 import api from "../api";
 import ProductImage from "../components/ProductImage.vue";
 import UiIcon from "../components/UiIcon.vue";
-import { useRoute } from 'vue-router';
+import { useRoute } from "vue-router";
 const route = useRoute();
-import { specs, specValue, specExplanation } from '../productSpecs';
-import { advisorContext } from '../shoppingContext';
-import {useComparison} from '../stores/comparison';
-const comparison=useComparison();
-let initialized=false;
+import { specs, specValue, specExplanation } from "../productSpecs";
+import { advisorContext } from "../shoppingContext";
+import { useComparison } from "../stores/comparison";
+const comparison = useComparison();
+let initialized = false;
 
 const all = ref<any[]>([]);
 const ids = ref<number[]>([]);
@@ -18,13 +18,16 @@ const categoryId = ref("");
 const loading = ref(false);
 const message = ref("");
 const onlyDifferences = ref(false);
+/** 取出当前已选的对比商品。 */
 const selectedProducts = computed(() =>
   all.value.filter((item) => ids.value.includes(item.id)),
 );
 
+/** 从目录筛出机器人主机。 */
 const robots = computed(() =>
   all.value.filter((item) => item.type === "ROBOT"),
 );
+/** 归纳可对比的主机分类。 */
 const categories = computed(() => {
   const map = new Map<string, { id: string; name: string; count: number }>();
   robots.value.forEach((item) => {
@@ -40,16 +43,20 @@ const categories = computed(() => {
   });
   return [...map.values()].filter((item) => item.count >= 2);
 });
+/** 列出当前分类可用候选。 */
 const available = computed(() =>
   robots.value.filter((item) => String(item.categoryId) === categoryId.value),
 );
+/** 收集对比表需要展示的参数项。 */
 const parameterKeys = computed(() => {
   const keys: string[] = [];
   products.value.forEach((item) => {
     try {
-      specs(item).map(s=>s.key).forEach((key) => {
-        if (!keys.includes(key)) keys.push(key);
-      });
+      specs(item)
+        .map((s) => s.key)
+        .forEach((key) => {
+          if (!keys.includes(key)) keys.push(key);
+        });
     } catch {
       /* ignore malformed admin data */
     }
@@ -57,14 +64,16 @@ const parameterKeys = computed(() => {
   return keys;
 });
 
+/** 读取单个商品的指定参数。 */
 function productParam(item: any, key: string) {
   try {
-    return specValue(item,key);
+    return specValue(item, key);
   } catch {
     return "—";
   }
 }
 
+/** 判断该参数在候选之间是否有差异。 */
 function isDifferent(key: string, type = "parameter") {
   const values = products.value.map((item) =>
     type === "parameter" ? productParam(item, key) : String(item[key] ?? "—"),
@@ -72,12 +81,14 @@ function isDifferent(key: string, type = "parameter") {
   return new Set(values).size > 1;
 }
 
+/** 格式化商品价格。 */
 function formatPrice(value: unknown) {
   return Number(value || 0).toLocaleString("zh-CN", {
     maximumFractionDigits: 2,
   });
 }
 
+/** 提交同类候选并展示参数对比结果。 */
 async function run() {
   if (ids.value.length < 2 || ids.value.length > 4) {
     message.value = "请在同一分类中选择 2～4 款商品";
@@ -120,7 +131,10 @@ watch(
   ids,
   () => {
     products.value = [];
-    if(initialized){comparison.clear();selectedProducts.value.forEach(p=>comparison.toggle(p));}
+    if (initialized) {
+      comparison.clear();
+      selectedProducts.value.forEach((p) => comparison.toggle(p));
+    }
   },
   { deep: true },
 );
@@ -128,17 +142,31 @@ watch(
 onMounted(async () => {
   try {
     all.value = (await api.get("/products")) as any[];
-    const requestedIds=route.query.ids?String(route.query.ids).split(',').map(Number).slice(0,4):comparison.items.map(p=>p.id);
-    const requested = robots.value.find(p => requestedIds.includes(p.id));
-    categoryId.value = requested ? String(requested.categoryId) : categories.value[0]?.id || "";
+    const requestedIds = route.query.ids
+      ? String(route.query.ids).split(",").map(Number).slice(0, 4)
+      : comparison.items.map((p) => p.id);
+    const requested = robots.value.find((p) => requestedIds.includes(p.id));
+    categoryId.value = requested
+      ? String(requested.categoryId)
+      : categories.value[0]?.id || "";
     await nextTick();
     if (requested) {
-      ids.value = robots.value.filter(p=>requestedIds.includes(p.id)&&p.categoryId===requested.categoryId).map(p=>p.id);
-      if(ids.value.length<requestedIds.filter(Boolean).length)message.value='对比只保留同类机器人；配件、不同分类或已下架候选未加入。';
+      ids.value = robots.value
+        .filter(
+          (p) =>
+            requestedIds.includes(p.id) &&
+            p.categoryId === requested.categoryId,
+        )
+        .map((p) => p.id);
+      if (ids.value.length < requestedIds.filter(Boolean).length)
+        message.value =
+          "对比只保留同类机器人；配件、不同分类或已下架候选未加入。";
     }
-    await nextTick();initialized=true;
-    comparison.clear();selectedProducts.value.forEach(p=>comparison.toggle(p));
-    if(ids.value.length>=2)await run();
+    await nextTick();
+    initialized = true;
+    comparison.clear();
+    selectedProducts.value.forEach((p) => comparison.toggle(p));
+    if (ids.value.length >= 2) await run();
   } catch (e: any) {
     message.value = e?.message || "商品加载失败";
   }
@@ -155,7 +183,18 @@ onMounted(async () => {
       <div class="compare-heading">
         <div>
           <h1>同类商品参数对比</h1>
-          <router-link v-if="selectedProducts.length" class="text-link" to="/advisor" @click="advisorContext(selectedProducts, '请比较这些候选机器人，说明差异对实际使用的影响和各自不足。请先问我预算与场景，不要默认数字大就更好。')">让 AI 帮我理解这些差异 →</router-link>
+          <router-link
+            v-if="selectedProducts.length"
+            class="text-link"
+            to="/advisor"
+            @click="
+              advisorContext(
+                selectedProducts,
+                '请比较这些候选机器人，说明差异对实际使用的影响和各自不足。请先问我预算与场景，不要默认数字大就更好。',
+              )
+            "
+            >让 AI 帮我理解这些差异 →</router-link
+          >
           <p>先选择分类，再选择 2～4 款商品；不同分类不会被混在一张表中。</p>
         </div>
         <div class="compare-rule">
@@ -219,9 +258,7 @@ onMounted(async () => {
             <span
               ><b>{{ item.name }}</b
               ><em>¥{{ formatPrice(item.price) }}</em
-              ><small
-                >{{ item.categoryName }}</small
-              ></span
+              ><small>{{ item.categoryName }}</small></span
             >
           </label>
         </div>
@@ -280,7 +317,11 @@ onMounted(async () => {
               <tr :class="{ difference: isDifferent('rating', 'field') }">
                 <th>评分</th>
                 <td v-for="item in products" :key="item.id">
-                  {{ Number(item.rating) > 0 ? `★ ${Number(item.rating).toFixed(1)}` : '暂无评分' }}
+                  {{
+                    Number(item.rating) > 0
+                      ? `★ ${Number(item.rating).toFixed(1)}`
+                      : "暂无评分"
+                  }}
                 </td>
               </tr>
               <tr
@@ -288,7 +329,13 @@ onMounted(async () => {
                 :key="key"
                 :class="{ difference: isDifferent(key) }"
               >
-                <th>{{ key }}<details><summary>如何理解</summary><small>{{ specExplanation(key) }}</small></details></th>
+                <th>
+                  {{ key }}
+                  <details>
+                    <summary>如何理解</summary>
+                    <small>{{ specExplanation(key) }}</small>
+                  </details>
+                </th>
                 <td v-for="item in products" :key="item.id">
                   {{ productParam(item, key) }}
                 </td>

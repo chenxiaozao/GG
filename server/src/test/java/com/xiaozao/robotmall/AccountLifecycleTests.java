@@ -13,28 +13,41 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
 
+/** 验证会话撤销及严格预算。 */
 class AccountLifecycleTests {
-    @Test void logoutAndPasswordChangeRevokeToken() {
+    /** 验证退出及改密都会撤销令牌。 */
+    @Test
+    void logoutAndPasswordChangeRevokeToken() {
         var users = mock(UserRepository.class);
         var encoder = new BCryptPasswordEncoder();
         var auth = new AuthService(users, encoder);
-        User user = new User(); user.token = "old"; user.password = encoder.encode("oldpassword");
+        User user = new User();
+        user.token = "old";
+        user.password = encoder.encode("oldpassword");
         when(users.findByToken("old")).thenReturn(Optional.of(user));
         auth.logout("old");
-        assertNull(user.token); assertNull(user.tokenExpire);
+        assertNull(user.token);
+        assertNull(user.tokenExpire);
         user.token = "next";
         assertThrows(BizException.class, () -> auth.changePassword(user, "wrong", "newpassword"));
         assertEquals("next", user.token);
         auth.changePassword(user, "oldpassword", "newpassword");
-        assertNull(user.token); assertTrue(encoder.matches("newpassword", user.password));
+        assertNull(user.token);
+        assertTrue(encoder.matches("newpassword", user.password));
     }
-    @Test void strictBudgetStockAndExplicitRelaxation() {
-        Product p = new Product(); p.stock = 1; p.price = new BigDecimal("1100");
+
+    /** 验证预算、库存与明确放宽约束。 */
+    @Test
+    void strictBudgetStockAndExplicitRelaxation() {
+        Product p = new Product();
+        p.stock = 1;
+        p.price = new BigDecimal("1100");
         assertFalse(RecommendationRules.eligible(p, new BigDecimal("1000"), false));
         assertTrue(RecommendationRules.eligible(p, new BigDecimal("1000"), true));
         p.stock = 0;
         assertFalse(RecommendationRules.eligible(p, null, true));
-        p.stock = 1; p.enabled = false;
+        p.stock = 1;
+        p.enabled = false;
         assertFalse(RecommendationRules.eligible(p, null, true));
     }
 }

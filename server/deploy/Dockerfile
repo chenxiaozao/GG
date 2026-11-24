@@ -1,3 +1,4 @@
+# 打包云端 Java 运行环境及后端应用。
 # The release archive supplies a tested JAR: no Maven or source build on the small server.
 FROM eclipse-temurin:17-jre-jammy
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \

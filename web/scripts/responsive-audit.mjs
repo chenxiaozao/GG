@@ -12,6 +12,7 @@ const { browser, shutdown } = await launchAuditBrowser({
   executablePath:
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
 });
+/** 获取测试账号会话。 */
 const login = async (username, password) => {
   const response = await fetch(`${apiUrl}/auth/login`, {
     method: "POST",
@@ -21,7 +22,9 @@ const login = async (username, password) => {
   const body = await response.json();
   if (!response.ok || body.code !== 200)
     throw new Error(`${username} 登录失败`);
-  return body.data.user ? { ...body.data.user, token: body.data.token } : body.data;
+  return body.data.user
+    ? { ...body.data.user, token: body.data.token }
+    : body.data;
 };
 const user = await login("user", "123456");
 const admin = await login("admin", "admin123");
@@ -219,7 +222,10 @@ try {
       );
     }),
   ]);
-  await writeFile(path.join(output, "report.json"), JSON.stringify(summary, null, 2));
+  await writeFile(
+    path.join(output, "report.json"),
+    JSON.stringify(summary, null, 2),
+  );
 } catch (error) {
   console.warn(error.message);
   process.exitCode = 1;

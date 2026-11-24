@@ -12,15 +12,25 @@ import java.util.HashSet;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
+/** 验证目录图片匹配与标记。 */
 class CatalogMediaTests {
     private final ObjectMapper mapper = new ObjectMapper();
+
+    /** 构造含媒体信息的商品。 */
     private Product product(String name, String image) {
-        var product = new Product(); product.name = name; product.image = image; return product;
+        var product = new Product();
+        product.name = name;
+        product.image = image;
+        return product;
     }
 
-    @Test void officialManifestHasUniqueLocalAssetsAndTraceableHttpsSources() throws Exception {
+    /** 验证素材唯一且有可追溯的 HTTPS 来源。 */
+    @Test
+    void officialManifestHasUniqueLocalAssetsAndTraceableHttpsSources() throws Exception {
         try (var input = getClass().getResourceAsStream("/catalog-media.json")) {
-            var entries = mapper.readValue(input, new TypeReference<List<CatalogMediaService.Entry>>() {});
+            var entries =
+                    mapper.readValue(
+                            input, new TypeReference<List<CatalogMediaService.Entry>>() {});
             assertTrue(entries.size() >= 8);
             var names = new HashSet<String>();
             var images = new HashSet<String>();
@@ -39,20 +49,40 @@ class CatalogMediaTests {
         }
     }
 
-    @Test void newProductVisualsReplaceOnlyKnownPlaceholders() throws Exception {
-        var service=new CatalogMediaService(mapper);
-        for(String name:List.of("Sphero Mini","Sphero indi","Makeblock mBot Ranger","Makeblock Codey Rocky","Enabot EBO SE","Enabot EBO Air")){
-            var p=product(name,"/products/placeholder.svg");p.sourceUrl="https://example.invalid/old-source";
-            service.migrateLegacyAssets(p,"/products/placeholder.svg",p.sourceUrl);service.describe(p);
-            assertEquals("OFFICIAL_VISUAL",p.imageKind);assertTrue(p.image.contains("20261106"));assertTrue(p.imageNote.contains("道具"));
-            p.image="/uploads/administrator-kept.png";service.migrateLegacyAssets(p,"/products/placeholder.svg",p.sourceUrl);service.describe(p);
-            assertEquals("/uploads/administrator-kept.png",p.image);assertEquals("UNREVIEWED",p.imageKind);
+    /** 验证只替换指定的历史占位图。 */
+    @Test
+    void newProductVisualsReplaceOnlyKnownPlaceholders() throws Exception {
+        var service = new CatalogMediaService(mapper);
+        for (String name :
+                List.of(
+                        "Sphero Mini",
+                        "Sphero indi",
+                        "Makeblock mBot Ranger",
+                        "Makeblock Codey Rocky",
+                        "Enabot EBO SE",
+                        "Enabot EBO Air")) {
+            var p = product(name, "/products/placeholder.svg");
+            p.sourceUrl = "https://example.invalid/old-source";
+            service.migrateLegacyAssets(p, "/products/placeholder.svg", p.sourceUrl);
+            service.describe(p);
+            assertEquals("OFFICIAL_VISUAL", p.imageKind);
+            assertTrue(p.image.contains("20261106"));
+            assertTrue(p.imageNote.contains("道具"));
+            p.image = "/uploads/administrator-kept.png";
+            service.migrateLegacyAssets(p, "/products/placeholder.svg", p.sourceUrl);
+            service.describe(p);
+            assertEquals("/uploads/administrator-kept.png", p.image);
+            assertEquals("UNREVIEWED", p.imageKind);
         }
     }
-    @Test void reviewedModelGetsExactImageButChangingImageInvalidatesBadge() throws Exception {
+
+    /** 验证严格型号匹配及换图后撤销标记。 */
+    @Test
+    void reviewedModelGetsExactImageButChangingImageInvalidatesBadge() throws Exception {
         var service = new CatalogMediaService(mapper);
         var product = product("石头 Qrevo Curv", "/products/real/roborock-g20s.jpeg");
-        service.applySeed(product); service.describe(product);
+        service.applySeed(product);
+        service.describe(product);
         assertEquals("MODEL_PHOTO", product.imageKind);
         assertTrue(product.sourceUrl.contains("/products/roborock-qrevo-curv"));
         assertNotNull(product.imageCheckedAt);
@@ -63,7 +93,9 @@ class CatalogMediaTests {
         assertNull(product.imageSourceUrl);
     }
 
-    @Test void anotherModelsPictureAndSeriesVariantsAreClearlyReferenceImages() throws Exception {
+    /** 验证异型号和同系列图片仅标参考。 */
+    @Test
+    void anotherModelsPictureAndSeriesVariantsAreClearlyReferenceImages() throws Exception {
         var service = new CatalogMediaService(mapper);
         var mini = product("大疆 Mini 4 Pro", "/products/real/dji-air3s.jpg");
         service.describe(mini);
@@ -77,7 +109,9 @@ class CatalogMediaTests {
         assertEquals("UNREVIEWED", baseModel.imageKind);
     }
 
-    @Test void illustrationAndUnknownUploadNeverBecomeVerifiedPhotos() throws Exception {
+    /** 验证示意图及未审图不冒充已核验照片。 */
+    @Test
+    void illustrationAndUnknownUploadNeverBecomeVerifiedPhotos() throws Exception {
         var service = new CatalogMediaService(mapper);
         var accessory = product("配件", "/products/battery.svg");
         service.describe(accessory);
@@ -88,11 +122,14 @@ class CatalogMediaTests {
         assertNull(unknown.sourceRegion);
     }
 
-    @Test void legacyMigrationDoesNotReplaceAdministratorMediaOrSource() throws Exception {
+    /** 验证迁移保留管理端编辑的素材。 */
+    @Test
+    void legacyMigrationDoesNotReplaceAdministratorMediaOrSource() throws Exception {
         var service = new CatalogMediaService(mapper);
         var product = product("石头 Qrevo Curv", "/uploads/admin-curv.jpg");
         product.sourceUrl = "https://example.org/admin-reference";
-        service.migrateLegacyAssets(product, "/products/real/roborock-g20s.jpeg", "https://old.example.org/");
+        service.migrateLegacyAssets(
+                product, "/products/real/roborock-g20s.jpeg", "https://old.example.org/");
         assertEquals("/uploads/admin-curv.jpg", product.image);
         assertEquals("https://example.org/admin-reference", product.sourceUrl);
         var legacy = product("石头 Qrevo Curv", "/products/real/roborock-g20s.jpeg");

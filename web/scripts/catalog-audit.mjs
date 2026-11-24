@@ -1,3 +1,4 @@
+/** 扫描导入的商城目录并核对商品参数与图片数据。 */
 import { mkdir, writeFile, access } from "node:fs/promises";
 import path from "node:path";
 

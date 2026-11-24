@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# 按需启动隔离的本地演示环境。
 set -euo pipefail
 umask 077
 cd "$(dirname "$0")"

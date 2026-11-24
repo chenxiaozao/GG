@@ -8,12 +8,14 @@ const jar = path.resolve('target/robotmall-server-1.0.0.jar');
 const base = 'http://127.0.0.1:18080';
 const profile = process.argv.includes('--prod') ? 'prod' : 'on-demand';
 let child;
+/** 停止由当前脚本启动的测试进程。 */
 async function stop() {
   if (!child || child.exitCode !== null) return;
   const ended = new Promise(resolve => child.once('exit', resolve));
   child.kill('SIGTERM');
   await ended;
 }
+/** 启动隔离测试所需的本地服务。 */
 async function start() {
   child = spawn('java', ['-Xmx384m', '-jar', jar, `--spring.profiles.active=${profile}`, '--server.address=127.0.0.1', '--server.port=18080',
     `--spring.datasource.url=jdbc:h2:file:${directory}/robotmall;MODE=MySQL;DATABASE_TO_LOWER=TRUE`,
@@ -34,6 +36,7 @@ async function start() {
   }
   throw new Error('Isolated backend startup timeout');
 }
+/** 发送测试请求并读取响应。 */
 async function request(url, method='GET', body, token) {
   const response = await fetch(base+url, { method, headers: { ...(body ? {'Content-Type':'application/json'} : {}), ...(token ? {'X-Token':token}: {}) }, body: body ? JSON.stringify(body):undefined });
   return { status: response.status, body: await response.json() };

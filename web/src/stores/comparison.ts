@@ -1,4 +1,5 @@
 import { defineStore } from "pinia";
+/** 描述加入对比篮的主机。 */
 interface ComparisonItem {
   id: number;
   name: string;
@@ -6,9 +7,11 @@ interface ComparisonItem {
   categoryName: string;
   type: string;
 }
+/** 管理前端的商品对比候选。 */
 export const useComparison = defineStore("comparison", {
   state: () => ({ items: [] as ComparisonItem[], message: "" }),
   actions: {
+    /** 切换候选并校验分类和数量。 */
     toggle(p: any) {
       this.message = "";
       const id = Number(p.id);
@@ -48,10 +51,12 @@ export const useComparison = defineStore("comparison", {
         type: p.type,
       });
     },
+    /** 清空当前对比篮。 */
     clear() {
       this.items = [];
       this.message = "";
     },
+    /** 移除指定商品。 */
     remove(id: number) {
       this.items = this.items.filter((p) => p.id !== id);
       this.message = "";

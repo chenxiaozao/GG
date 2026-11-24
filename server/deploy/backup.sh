@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# 备份数据库及上传文件。
 set -euo pipefail
 umask 077
 cd "$(dirname "$0")"

@@ -26,21 +26,27 @@ const query = reactive({
   sort: "sales",
 });
 
+/** 确定当前选中的分类。 */
 const activeCategory = computed(() =>
   categories.value.find((item) => String(item.id) === String(query.categoryId)),
 );
+/** 确定当前选中的品牌。 */
 const activeBrand = computed(() =>
   brands.value.find((item) => String(item.id) === String(query.brandId)),
 );
+/** 筛出当前分类下有商品的品牌。 */
 const visibleBrands = computed(() =>
   brandsExpanded.value ? brands.value : brands.value.slice(0, 8),
 );
+/** 按商品数计算页数。 */
 const totalPages = computed(() =>
   Math.max(1, Math.ceil(products.value.length / pageSize)),
 );
+/** 截取当前页要显示的商品。 */
 const visibleProducts = computed(() =>
   products.value.slice((page.value - 1) * pageSize, page.value * pageSize),
 );
+/** 生成已应用筛选条件的标签。 */
 const activeFilters = computed(() =>
   [
     { key: "keyword", value: query.keyword, label: `搜索：${query.keyword}` },
@@ -63,11 +69,13 @@ const activeFilters = computed(() =>
   ].filter((item) => item.value),
 );
 
+/** 从网址同步商品筛选条件。 */
 function syncFromRoute() {
   for (const key of Object.keys(query) as Array<keyof typeof query>)
     query[key] = String(route.query[key] || (key === "sort" ? "sales" : ""));
 }
 
+/** 请求并显示最新条件对应的目录结果。 */
 async function load(updateUrl = true) {
   const sequence = ++loadSequence;
   if (
@@ -103,18 +111,21 @@ async function load(updateUrl = true) {
   }
 }
 
+/** 切换分类筛选项。 */
 function selectCategory(id: string | number) {
   query.categoryId = String(id || "");
   filtersOpen.value = false;
   load();
 }
 
+/** 切换品牌筛选项。 */
 function selectBrand(id: string | number) {
   query.brandId = String(id || "");
   filtersOpen.value = false;
   load();
 }
 
+/** 恢复默认搜索和筛选。 */
 function resetFilters() {
   Object.assign(query, {
     keyword: "",
@@ -126,20 +137,20 @@ function resetFilters() {
   });
   load();
 }
+/** 移除一项已应用筛选。 */
 function removeFilter(key: string) {
   query[key as keyof typeof query] = "";
   load();
 }
+/** 跳到指定商品列表页。 */
 function changePage(next: number) {
   page.value = Math.max(1, Math.min(totalPages.value, next));
-  document
-    .querySelector(".catalog-toolbar")
-    ?.scrollIntoView({
-      block: "start",
-      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-        ? "instant"
-        : "smooth",
-    });
+  document.querySelector(".catalog-toolbar")?.scrollIntoView({
+    block: "start",
+    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "instant"
+      : "smooth",
+  });
 }
 
 onMounted(async () => {

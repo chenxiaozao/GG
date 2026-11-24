@@ -8,8 +8,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+/** 验证应用及数据库就绪条件。 */
 class HealthControllerTests {
-    @Test void reportsReadyOnlyWhenDatabaseResponds() {
+    /** 验证数据库可访问时才算就绪。 */
+    @Test
+    void reportsReadyOnlyWhenDatabaseResponds() {
         var db = mock(JdbcTemplate.class);
         var availability = mock(ApplicationAvailability.class);
         when(availability.getReadinessState()).thenReturn(ReadinessState.ACCEPTING_TRAFFIC);
@@ -19,7 +22,9 @@ class HealthControllerTests {
         assertEquals("UP", response.getBody().getData().get("status"));
     }
 
-    @Test void seedingAndStartupMustFinishBeforeReadiness() {
+    /** 验证初始化完成前健康检查不能成功。 */
+    @Test
+    void seedingAndStartupMustFinishBeforeReadiness() {
         var db = mock(JdbcTemplate.class);
         var availability = mock(ApplicationAvailability.class);
         when(availability.getReadinessState()).thenReturn(ReadinessState.REFUSING_TRAFFIC);
@@ -27,11 +32,14 @@ class HealthControllerTests {
         verifyNoInteractions(db);
     }
 
-    @Test void connectionFailuresDoNotLeakInternals() {
+    /** 验证连接异常不会泄漏内部细节。 */
+    @Test
+    void connectionFailuresDoNotLeakInternals() {
         var db = mock(JdbcTemplate.class);
         var availability = mock(ApplicationAvailability.class);
         when(availability.getReadinessState()).thenReturn(ReadinessState.ACCEPTING_TRAFFIC);
-        when(db.queryForObject("SELECT 1", Integer.class)).thenThrow(new IllegalStateException("secret connection details"));
+        when(db.queryForObject("SELECT 1", Integer.class))
+                .thenThrow(new IllegalStateException("secret connection details"));
         var response = new HealthController(db, availability).health();
         assertEquals(503, response.getStatusCode().value());
         assertEquals("DOWN", response.getBody().getData().get("status"));

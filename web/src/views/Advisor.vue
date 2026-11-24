@@ -21,22 +21,50 @@ const message = ref("");
 const loading = ref(false);
 const aiConfigured = ref(false);
 const aiConnected = ref(false);
-const quota = ref<{remaining:number;limit:number;note:string}|null>(null);
-const featureOptions = ['自动集尘', '避障', '防缠绕', '拖地', '编程', '遥控'];
+const quota = ref<{ remaining: number; limit: number; note: string } | null>(
+  null,
+);
+const featureOptions = ["自动集尘", "避障", "防缠绕", "拖地", "编程", "遥控"];
+/** 读取当前登录账号的助选剩余次数。 */
 async function refreshQuota() {
-  if (!localStorage.getItem('token')) return;
-  try { quota.value = await api.get('/advisor/quota') as any; } catch { quota.value = null; }
+  if (!localStorage.getItem("token")) return;
+  try {
+    quota.value = (await api.get("/advisor/quota")) as any;
+  } catch {
+    quota.value = null;
+  }
 }
 const chatRegion = ref<HTMLElement | null>(null);
 const chatInput = ref("");
 const contextProducts = ref<any[]>([]);
 const contextIds = ref<number[]>([]);
-const contextError = ref('');
-function clearContext(){contextIds.value=[];contextProducts.value=[];contextError.value='';sessionStorage.removeItem('robotmall-advisor-context');}
-function savePlanDraft(){
- const requirement=chatInput.value.trim() || [...chatMessages.value].reverse().find(m=>m.role==='user')?.content || '';
- sessionStorage.setItem('robotmall-plan-draft',JSON.stringify({owner:JSON.parse(localStorage.getItem('user')||'null')?.id,requirement,productIds:contextIds.value.length?contextIds.value:(chatMessages.value.at(-1)?.products||[]).slice(0,4).map(p=>p.id)}));
- router.push('/profile#plans');
+const contextError = ref("");
+/** 清除从商品详情或选购计划带入的候选范围。 */
+function clearContext() {
+  contextIds.value = [];
+  contextProducts.value = [];
+  contextError.value = "";
+  sessionStorage.removeItem("robotmall-advisor-context");
+}
+/** 把对话需求与候选商品保存为本地选购计划草稿。 */
+function savePlanDraft() {
+  const requirement =
+    chatInput.value.trim() ||
+    [...chatMessages.value].reverse().find((m) => m.role === "user")?.content ||
+    "";
+  sessionStorage.setItem(
+    "robotmall-plan-draft",
+    JSON.stringify({
+      owner: JSON.parse(localStorage.getItem("user") || "null")?.id,
+      requirement,
+      productIds: contextIds.value.length
+        ? contextIds.value
+        : (chatMessages.value.at(-1)?.products || [])
+            .slice(0, 4)
+            .map((p) => p.id),
+    }),
+  );
+  router.push("/profile#plans");
 }
 const chatLoading = ref(false);
 const advisorMode = ref<"chat" | "form">("chat");
@@ -45,12 +73,14 @@ const prompts = [
   "第一次买航拍无人机，预算 6000 元，更看重便携和易上手",
   "想找适合孩子入门编程的机器人，预算 3000 元",
 ];
+/** 把示例问题填进输入框并聚焦。 */
 function usePrompt(question: string) {
   chatInput.value = question;
   document
     .querySelector<HTMLTextAreaElement>(".advisor-chat-input textarea")
     ?.focus();
 }
+/** 取回最近一个用户问题以便重试。 */
 function retryQuestion() {
   const last = [...chatMessages.value]
     .reverse()
@@ -62,7 +92,10 @@ const chatMessages = ref<
     role: "user" | "assistant";
     content: string;
     products?: any[];
-    evidence?: Array<{product:{id:number;name:string};reasons:string[]}>;
+    evidence?: Array<{
+      product: { id: number; name: string };
+      reasons: string[];
+    }>;
     notice?: string;
     error?: boolean;
   }[]
@@ -84,6 +117,7 @@ const scenes = [
   ["service", "商用服务", "迎宾、配送与展示"],
 ];
 
+/** 提交已经结构化的表单并展示确定性规则推荐。 */
 async function recommend() {
   message.value = "";
   result.value = null;
@@ -108,11 +142,13 @@ async function recommend() {
   }
 }
 
+/** 格式化推荐卡片中的金额。 */
 function formatPrice(value: unknown) {
   return Number(value || 0).toLocaleString("zh-CN", {
     maximumFractionDigits: 2,
   });
 }
+/** 把原样的问题、近期消息和候选编号发给 Java；不在浏览器调用模型或判断咨询领域。 */
 async function sendChat() {
   const question = chatInput.value.trim();
   if (!question || chatLoading.value) return;
@@ -121,6 +157,7 @@ async function sendChat() {
     await router.push({ path: "/login", query: { redirect: "/advisor" } });
     return;
   }
+  /** 中文消息保持原样，只组织为带角色与内容的请求字段。 */
   const history = chatMessages.value
     .filter((item) => !item.error)
     .slice(-6)
@@ -134,13 +171,13 @@ async function sendChat() {
       { question, history, contextProductIds: contextIds.value },
       { timeout: 45000 },
     );
-    aiConnected.value = response.provider === 'DeepSeek';
+    aiConnected.value = response.provider === "DeepSeek";
     chatMessages.value.push({
       role: "assistant",
       content: response.answer,
       products: response.products || [],
       evidence: response.evidence || [],
-      notice: response.notice || '',
+      notice: response.notice || "",
     });
   } catch (e: any) {
     aiConnected.value = false;
@@ -170,19 +207,30 @@ watch(
 );
 onMounted(async () => {
   try {
-    const ids=JSON.parse(sessionStorage.getItem('robotmall-advisor-context')||'[]');
-    if(Array.isArray(ids)) {
-      contextIds.value=[...new Set(ids.filter(id=>Number.isSafeInteger(id)&&id>0))].slice(0,4) as number[];
-      contextProducts.value=await Promise.all(contextIds.value.map(id=>api.get(`/products/${id}`)));
+    const ids = JSON.parse(
+      sessionStorage.getItem("robotmall-advisor-context") || "[]",
+    );
+    if (Array.isArray(ids)) {
+      contextIds.value = [
+        ...new Set(ids.filter((id) => Number.isSafeInteger(id) && id > 0)),
+      ].slice(0, 4) as number[];
+      contextProducts.value = await Promise.all(
+        contextIds.value.map((id) => api.get(`/products/${id}`)),
+      );
     }
-  } catch { contextError.value='候选商品读取失败，请返回原页面重新选择，或清除候选后咨询。'; }
+  } catch {
+    contextError.value =
+      "候选商品读取失败，请返回原页面重新选择，或清除候选后咨询。";
+  }
   await refreshQuota();
-  const entry = sessionStorage.getItem('robotmall-advisor-entry');
+  const entry = sessionStorage.getItem("robotmall-advisor-entry");
   if (entry) {
     chatInput.value = entry;
-    sessionStorage.removeItem('robotmall-advisor-entry');
+    sessionStorage.removeItem("robotmall-advisor-entry");
     await nextTick();
-    document.querySelector<HTMLTextAreaElement>('.advisor-chat-input textarea')?.focus();
+    document
+      .querySelector<HTMLTextAreaElement>(".advisor-chat-input textarea")
+      ?.focus();
   }
   try {
     const status: any = await api.get("/advisor/ai-status");
@@ -195,7 +243,22 @@ onMounted(async () => {
 
 <template>
   <div class="advisor-page">
-    <section class="context-strip container" aria-label="本次选购上下文"><div v-if="contextIds.length"><b>正在围绕 {{ contextProducts.length }} 款候选咨询</b><p>只在这些候选内分析；没有满足条件的商品时不会自动放宽要求。</p><router-link v-for="p in contextProducts" :key="p.id" :to="`/product/${p.id}`">{{ p.name }} · </router-link><button class="btn secondary" @click="clearContext">清除候选</button></div><p v-if="contextError" role="alert">{{ contextError }}</p><button class="btn secondary" @click="savePlanDraft">保存为选购计划</button></section>
+    <section class="context-strip container" aria-label="本次选购上下文">
+      <div v-if="contextIds.length">
+        <b>正在围绕 {{ contextProducts.length }} 款候选咨询</b>
+        <p>只在这些候选内分析；没有满足条件的商品时不会自动放宽要求。</p>
+        <router-link
+          v-for="p in contextProducts"
+          :key="p.id"
+          :to="`/product/${p.id}`"
+          >{{ p.name }} · </router-link
+        ><button class="btn secondary" @click="clearContext">清除候选</button>
+      </div>
+      <p v-if="contextError" role="alert">{{ contextError }}</p>
+      <button class="btn secondary" @click="savePlanDraft">
+        保存为选购计划
+      </button>
+    </section>
     <section class="advisor-hero">
       <div class="container">
         <p class="section-kicker">选购顾问</p>
@@ -293,16 +356,35 @@ onMounted(async () => {
           >
           <label
             ><span>最低续航（分钟）</span
-            ><input class="input" type="number" min="0" max="1440" v-model.number="form.minEndurance" />
+            ><input
+              class="input"
+              type="number"
+              min="0"
+              max="1440"
+              v-model.number="form.minEndurance"
+            />
             <small>0 表示不限；目录缺少数据时不能视为满足要求</small></label
           >
           <label
-            ><span>必要功能（可多选）</span
-            ><div class="required-features"><label v-for="feature in featureOptions" :key="feature"><input type="checkbox" :value="feature" v-model="form.requiredFeatures" />{{ feature }}</label></div>
+            ><span>必要功能（可多选）</span>
+            <div class="required-features">
+              <label v-for="feature in featureOptions" :key="feature"
+                ><input
+                  type="checkbox"
+                  :value="feature"
+                  v-model="form.requiredFeatures"
+                />{{ feature }}</label
+              >
+            </div>
             <small>必须有目录参数证据，否则不推荐</small></label
           >
         </div>
-        <label class="budget-opt-in"><input type="checkbox" v-model="form.allowOverBudget" />允许最多超预算 20% 的进阶备选</label>
+        <label class="budget-opt-in"
+          ><input
+            type="checkbox"
+            v-model="form.allowOverBudget"
+          />允许最多超预算 20% 的进阶备选</label
+        >
         <button class="btn advisor-submit" type="submit" :disabled="loading">
           {{ loading ? "正在分析商品…" : "生成选购建议" }}
         </button>
@@ -319,10 +401,12 @@ onMounted(async () => {
             <b>场景匹配</b><small>只比较能够解决目标问题的机器人类别</small>
           </li>
           <li>
-            <b>预算约束</b><small>默认不超预算，仅在明确勾选后允许适度上浮</small>
+            <b>预算约束</b
+            ><small>默认不超预算，仅在明确勾选后允许适度上浮</small>
           </li>
           <li>
-            <b>规则排序</b><small>先验证硬条件，再按价格、续航或售后证据排序</small>
+            <b>规则排序</b
+            ><small>先验证硬条件，再按价格、续航或售后证据排序</small>
           </li>
           <li>
             <b>理由透明</b><small>每款商品展示进入推荐列表的具体原因</small>
@@ -342,7 +426,11 @@ onMounted(async () => {
         <div>
           <h2>小造 AI</h2>
           <p>推荐商品可以直接查看图片、价格和详情。</p>
-          <small v-if="quota && Number.isFinite(quota.remaining)">今日剩余 {{ quota.remaining }} / {{ quota.limit }} 次；UTC自然日重置。无关话题本地拒答不计AI额度</small>
+          <small v-if="quota && Number.isFinite(quota.remaining)"
+            >今日剩余 {{ quota.remaining }} /
+            {{ quota.limit }}
+            次；UTC自然日重置。无关话题本地拒答不计AI额度</small
+          >
         </div>
         <b :class="{ muted: !aiConfigured }">{{
           aiConnected
@@ -371,8 +459,20 @@ onMounted(async () => {
               :content="item.content"
             />
             <p v-else>{{ item.content }}</p>
-            <p v-if="item.notice" class="ai-evidence-notice">{{ item.notice }}</p>
-            <details v-if="item.evidence?.length" class="ai-evidence"><summary>查看推荐参数依据</summary><div v-for="row in item.evidence" :key="row.product.id"><b>{{ row.product.name }}</b><ul><li v-for="reason in row.reasons" :key="reason">{{ reason }}</li></ul></div></details>
+            <p v-if="item.notice" class="ai-evidence-notice">
+              {{ item.notice }}
+            </p>
+            <details v-if="item.evidence?.length" class="ai-evidence">
+              <summary>查看推荐参数依据</summary>
+              <div v-for="row in item.evidence" :key="row.product.id">
+                <b>{{ row.product.name }}</b>
+                <ul>
+                  <li v-for="reason in row.reasons" :key="reason">
+                    {{ reason }}
+                  </li>
+                </ul>
+              </div>
+            </details>
             <button
               v-if="item.error"
               type="button"
@@ -442,7 +542,11 @@ onMounted(async () => {
           </button>
         </form>
         <p class="advisor-chat-note">
-          本助手仅用于机器人选购与商城使用，不处理无关作业。有效咨询会发送至 DeepSeek，请勿输入手机号等隐私；回答可能有误，请核对参数依据。本系统的选购偏好默认不收集，可在<router-link to="/profile#preferences">我的选购偏好</router-link>中自行开启、纠正或删除；档案开关不影响你主动发出的 AI 请求。
+          本助手仅用于机器人选购与商城使用，不处理无关作业。有效咨询会发送至
+          DeepSeek，请勿输入手机号等隐私；回答可能有误，请核对参数依据。本系统的选购偏好默认不收集，可在<router-link
+            to="/profile#preferences"
+            >我的选购偏好</router-link
+          >中自行开启、纠正或删除；档案开关不影响你主动发出的 AI 请求。
         </p>
       </div>
     </section>
@@ -457,7 +561,12 @@ onMounted(async () => {
           <span>筛选结果</span>
           <h2>{{ result.categoryName }}推荐结果</h2>
           <p>{{ result.summary }} · 预算 ¥{{ formatPrice(result.budget) }}</p>
-          <small v-if="result.unverifiedCount">{{ result.unverifiedCount }} 款同类商品因必要功能或续航缺少证据，未当作满足要求。</small>
+          <small v-if="result.unverifiedCount"
+            >{{
+              result.unverifiedCount
+            }}
+            款同类商品因必要功能或续航缺少证据，未当作满足要求。</small
+          >
         </div>
         <b>{{ result.items.length }} 款候选</b>
       </div>

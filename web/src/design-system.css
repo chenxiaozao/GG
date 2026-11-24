@@ -1,3 +1,4 @@
+/** 按钮、输入框、卡片等共用组件样式。 */
 /*
  * 小造智械 2.0 视觉系统
  * 这一层只负责统一视觉语言与页面布局，不改变业务数据和交互接口。
@@ -207,7 +208,8 @@ html[data-color-scheme="dark"] .app-shell .home-featured-info h2 {
 }
 
 .app-shell .input,
-.app-shell :where(input:not([type="checkbox"]):not([type="radio"]):not([type="color"])),
+.app-shell
+  :where(input:not([type="checkbox"]):not([type="radio"]):not([type="color"])),
 .app-shell select,
 .app-shell textarea {
   min-height: 42px;

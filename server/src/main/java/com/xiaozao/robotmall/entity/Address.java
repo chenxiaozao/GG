@@ -2,8 +2,13 @@ package com.xiaozao.robotmall.entity;
 
 import jakarta.persistence.*;
 
-@Entity public class Address {
-    @Id @GeneratedValue(strategy=GenerationType.IDENTITY) public Long id;
+/** 表示账号收货地址。 */
+@Entity
+public class Address {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    public Long id;
+
     public Long userId;
     public String receiver;
     public String phone;
@@ -12,6 +17,7 @@ import jakarta.persistence.*;
     public String district;
     public String detail;
     public boolean defaultAddress;
-    public Address() {
-    }
+
+    /** 构造供持久化框架初始化的记录。 */
+    public Address() {}
 }

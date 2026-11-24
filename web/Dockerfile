@@ -1,3 +1,4 @@
+# 构建并托管商城前端产物。
 FROM node:22-alpine AS build
 WORKDIR /build
 COPY package*.json ./

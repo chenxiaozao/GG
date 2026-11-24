@@ -16,37 +16,68 @@ const keyword = ref("");
 const need = ref("");
 const selectedScene = ref("地面清洁");
 const sceneOptions = [
-  { name: '地面清洁', label: '把家务交给它', note: '扫地、拖地与日常维护' },
-  { name: '陪伴娱乐', label: '多一个小伙伴', note: '互动、看护与家庭陪伴' },
-  { name: '教育编程', label: '从好奇到创造', note: '动手搭建，探索编程' },
-  { name: '航拍无人机', label: '换个角度看世界', note: '从掌上跟拍到进阶航拍' },
+  { name: "地面清洁", label: "把家务交给它", note: "扫地、拖地与日常维护" },
+  { name: "陪伴娱乐", label: "多一个小伙伴", note: "互动、看护与家庭陪伴" },
+  { name: "教育编程", label: "从好奇到创造", note: "动手搭建，探索编程" },
+  { name: "航拍无人机", label: "换个角度看世界", note: "从掌上跟拍到进阶航拍" },
 ];
-const sceneProducts = computed(() => products.value.filter(p => p.categoryName === selectedScene.value).slice(0, 4));
-const displayProducts = computed(() => sceneProducts.value.length ? sceneProducts.value : robots.value.slice(0, 4));
-const coverProduct = computed(() => robots.value.find(p => p.name === '石头 Qrevo Curv') || robots.value.find(p => p.image && !p.image.endsWith('.svg')));
-const scenarios = ['家里有宠物，想选省心的扫拖机器人', '想给孩子选一款编程机器人', '需要清洁窗户，想了解有哪些选择'];
+/** 筛出当前使用场景对应的商品。 */
+const sceneProducts = computed(() =>
+  products.value
+    .filter((p) => p.categoryName === selectedScene.value)
+    .slice(0, 4),
+);
+/** 确定首页当前展示商品。 */
+const displayProducts = computed(() =>
+  sceneProducts.value.length ? sceneProducts.value : robots.value.slice(0, 4),
+);
+/** 选择首页主视觉商品。 */
+const coverProduct = computed(
+  () =>
+    robots.value.find((p) => p.name === "石头 Qrevo Curv") ||
+    robots.value.find((p) => p.image && !p.image.endsWith(".svg")),
+);
+const scenarios = [
+  "家里有宠物，想选省心的扫拖机器人",
+  "想给孩子选一款编程机器人",
+  "需要清洁窗户，想了解有哪些选择",
+];
+/** 把首页咨询文字交给顾问页。 */
 function consult() {
   if (!need.value.trim()) return;
-  sessionStorage.setItem('robotmall-advisor-entry', need.value.trim().slice(0, 1000));
-  router.push('/advisor');
+  sessionStorage.setItem(
+    "robotmall-advisor-entry",
+    need.value.trim().slice(0, 1000),
+  );
+  router.push("/advisor");
 }
+/** 将焦点移到咨询输入框。 */
 function focusNeed() {
-  const input = document.getElementById('home-need');
-  input?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+  const input = document.getElementById("home-need");
+  input?.scrollIntoView({
+    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "auto"
+      : "smooth",
+    block: "center",
+  });
   input?.focus({ preventScroll: true });
 }
 
+/** 筛出主机类商品。 */
 const robots = computed(() =>
   products.value.filter((item) => item.type === "ROBOT"),
 );
+/** 筛出配件类商品。 */
 const accessories = computed(() =>
   products.value.filter((item) => item.type === "ACCESSORY"),
 );
 
+/** 统计指定分类的商品数。 */
 function countByCategory(categoryId: number) {
   return products.value.filter((item) => item.categoryId === categoryId).length;
 }
 
+/** 携带关键词进入商品列表。 */
 function search() {
   router.push({
     path: "/products",
@@ -73,25 +104,123 @@ onMounted(async () => {
 <template>
   <div class="home-page">
     <section class="discovery-hero">
-      <div class="discovery-intro"><span class="discovery-label">小造智械 / 生活里的机器人</span><h1>把琐事交给它，<br />把时间留给生活。</h1><p>清洁家里，陪伴日常，或探索新的世界。<br />从你的生活方式出发，找到合适的机器人。</p><div class="editorial-hero-actions"><button class="btn" type="button" @click="focusNeed">让 AI 帮我选 <UiIcon name="arrow" :size="18" /></button><router-link to="/products">随便逛逛 →</router-link></div></div>
-      <router-link v-if="coverProduct" class="editorial-cover" :to="`/product/${coverProduct.id}`"><ProductImage :product="coverProduct" eager /><div><span>日常清洁 / {{ coverProduct.brandName }}</span><b>{{ coverProduct.name }}</b><span>了解这款商品 ↗</span></div></router-link>
-      <div v-else class="editorial-cover editorial-cover-empty">从生活出发，慢慢找到适合的一款。</div>
+      <div class="discovery-intro">
+        <span class="discovery-label">小造智械 / 生活里的机器人</span>
+        <h1>把琐事交给它，<br />把时间留给生活。</h1>
+        <p>
+          清洁家里，陪伴日常，或探索新的世界。<br />从你的生活方式出发，找到合适的机器人。
+        </p>
+        <div class="editorial-hero-actions">
+          <button class="btn" type="button" @click="focusNeed">
+            让 AI 帮我选 <UiIcon name="arrow" :size="18" /></button
+          ><router-link to="/products">随便逛逛 →</router-link>
+        </div>
+      </div>
+      <router-link
+        v-if="coverProduct"
+        class="editorial-cover"
+        :to="`/product/${coverProduct.id}`"
+        ><ProductImage :product="coverProduct" eager />
+        <div>
+          <span>日常清洁 / {{ coverProduct.brandName }}</span
+          ><b>{{ coverProduct.name }}</b
+          ><span>了解这款商品 ↗</span>
+        </div></router-link
+      >
+      <div v-else class="editorial-cover editorial-cover-empty">
+        从生活出发，慢慢找到适合的一款。
+      </div>
     </section>
-      <form class="need-composer editorial-assistant" @submit.prevent="consult">
-        <label for="home-need">你想让机器人帮你做什么？</label>
-        <textarea id="home-need" v-model="need" maxlength="1000" placeholder="例如：家里有猫，90 平米，预算 4000 元，希望少清理毛发。" required />
-        <div class="need-scenarios"><button v-for="scenario in scenarios" :key="scenario" type="button" @click="need = scenario">{{ scenario }}</button></div>
-        <div class="need-submit"><small>仅在商城商品中助选 · 发送前可修改需求</small><button class="btn" :disabled="!need.trim()">开始 AI 助选 <UiIcon name="arrow" :size="18" /></button></div>
+    <form class="need-composer editorial-assistant" @submit.prevent="consult">
+      <label for="home-need">你想让机器人帮你做什么？</label>
+      <textarea
+        id="home-need"
+        v-model="need"
+        maxlength="1000"
+        placeholder="例如：家里有猫，90 平米，预算 4000 元，希望少清理毛发。"
+        required
+      />
+      <div class="need-scenarios">
+        <button
+          v-for="scenario in scenarios"
+          :key="scenario"
+          type="button"
+          @click="need = scenario"
+        >
+          {{ scenario }}
+        </button>
+      </div>
+      <div class="need-submit">
+        <small>仅在商城商品中助选 · 发送前可修改需求</small
+        ><button class="btn" :disabled="!need.trim()">
+          开始 AI 助选 <UiIcon name="arrow" :size="18" />
+        </button>
+      </div>
+    </form>
+    <div class="home-browse-bar">
+      <form @submit.prevent="search">
+        <UiIcon name="search" :size="18" /><input
+          v-model="keyword"
+          aria-label="搜索品牌或型号"
+          placeholder="已有型号？搜索品牌或商品"
+        /><button type="submit">搜索</button>
       </form>
-    <div class="home-browse-bar"><form @submit.prevent="search"><UiIcon name="search" :size="18" /><input v-model="keyword" aria-label="搜索品牌或型号" placeholder="已有型号？搜索品牌或商品" /><button type="submit">搜索</button></form><router-link to="/compare">比较已有选择 →</router-link><router-link to="/profile">进入我的空间 →</router-link></div>
+      <router-link to="/compare">比较已有选择 →</router-link
+      ><router-link to="/profile">进入我的空间 →</router-link>
+    </div>
 
     <div class="container">
       <section class="scene-discovery" aria-label="按生活场景发现商品">
-        <div class="scene-heading"><div><span class="section-kicker">从生活出发</span><h2>先找到你的使用场景</h2></div><router-link to="/products">所有分类 →</router-link></div>
-        <div class="scene-tabs" role="group" aria-label="选择场景"><button v-for="scene in sceneOptions" :key="scene.name" :aria-pressed="selectedScene === scene.name" @click="selectedScene = scene.name"><strong>{{ scene.label }}</strong><span>{{ scene.note }}</span></button></div>
+        <div class="scene-heading">
+          <div>
+            <span class="section-kicker">从生活出发</span>
+            <h2>先找到你的使用场景</h2>
+          </div>
+          <router-link to="/products">所有分类 →</router-link>
+        </div>
+        <div class="scene-tabs" role="group" aria-label="选择场景">
+          <button
+            v-for="scene in sceneOptions"
+            :key="scene.name"
+            :aria-pressed="selectedScene === scene.name"
+            @click="selectedScene = scene.name"
+          >
+            <strong>{{ scene.label }}</strong
+            ><span>{{ scene.note }}</span>
+          </button>
+        </div>
         <div v-if="displayProducts.length" class="scene-showcase">
-          <router-link :to="`/product/${displayProducts[0].id}`" class="scene-feature"><div><span>{{ selectedScene }} / 了解一款</span><h3>{{ displayProducts[0].name }}</h3><p>{{ displayProducts[0].subtitle }}</p><b>¥{{ Number(displayProducts[0].price).toLocaleString('zh-CN') }} </b><em>查看商品 →</em></div><ProductImage :product="displayProducts[0]" /></router-link>
-          <div class="scene-alternatives"><router-link v-for="product in displayProducts.slice(1)" :key="product.id" :to="`/product/${product.id}`"><ProductImage :product="product" /><div><small>{{ product.brandName }}</small><h3>{{ product.name }}</h3><span>¥{{ Number(product.price).toLocaleString('zh-CN') }}</span></div><span aria-hidden="true">↗</span></router-link></div>
+          <router-link
+            :to="`/product/${displayProducts[0].id}`"
+            class="scene-feature"
+            ><div>
+              <span>{{ selectedScene }} / 了解一款</span>
+              <h3>{{ displayProducts[0].name }}</h3>
+              <p>{{ displayProducts[0].subtitle }}</p>
+              <b
+                >¥{{
+                  Number(displayProducts[0].price).toLocaleString("zh-CN")
+                }} </b
+              ><em>查看商品 →</em>
+            </div>
+            <ProductImage :product="displayProducts[0]"
+          /></router-link>
+          <div class="scene-alternatives">
+            <router-link
+              v-for="product in displayProducts.slice(1)"
+              :key="product.id"
+              :to="`/product/${product.id}`"
+              ><ProductImage :product="product" />
+              <div>
+                <small>{{ product.brandName }}</small>
+                <h3>{{ product.name }}</h3>
+                <span
+                  >¥{{ Number(product.price).toLocaleString("zh-CN") }}</span
+                >
+              </div>
+              <span aria-hidden="true">↗</span></router-link
+            >
+          </div>
         </div>
       </section>
       <nav class="home-category-rail" aria-label="商品分类">
@@ -117,7 +246,12 @@ onMounted(async () => {
           <router-link class="text-link" to="/products">查看全部 →</router-link>
         </div>
         <div class="notice" v-if="message">{{ message }}</div>
-        <ProductGrid :loading="loading" :products="robots.filter(p => p.categoryName !== selectedScene).slice(0, 6)" />
+        <ProductGrid
+          :loading="loading"
+          :products="
+            robots.filter((p) => p.categoryName !== selectedScene).slice(0, 6)
+          "
+        />
       </section>
 
       <section class="home-section">

@@ -1,3 +1,4 @@
+# 构建并发布静态网页；只传公开的商城后端地址，不传模型密钥。
 name: Publish frontend to Pages
 on:
   workflow_dispatch:

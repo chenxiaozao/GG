@@ -1,3 +1,4 @@
+/** 注册路由和状态容器后挂载商城前端。 */
 import { createApp } from "vue";
 import { createPinia } from "pinia";
 import App from "./App.vue";
@@ -13,9 +14,13 @@ import "./control-spacing.css";
 import "./clean-ui.css";
 import "./interaction-controls.css";
 const pinia = createPinia();
-window.addEventListener("robotmall-session-expired", () => useAuthStore(pinia).clearSession());
-window.addEventListener('storage', event => {
-  if ((event.key==='token' || event.key==='user') && !event.newValue) useAuthStore(pinia).clearSession();
-  else if (event.key==='token' || event.key==='user') window.location.reload();
+window.addEventListener("robotmall-session-expired", () =>
+  useAuthStore(pinia).clearSession(),
+);
+window.addEventListener("storage", (event) => {
+  if ((event.key === "token" || event.key === "user") && !event.newValue)
+    useAuthStore(pinia).clearSession();
+  else if (event.key === "token" || event.key === "user")
+    window.location.reload();
 });
 createApp(App).use(pinia).use(router).mount("#app");

@@ -8,23 +8,35 @@ import org.junit.jupiter.api.Test;
 import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest(properties={"spring.datasource.url=jdbc:h2:mem:quota_test;MODE=MySQL;DB_CLOSE_DELAY=-1",
-    "spring.jpa.hibernate.ddl-auto=create-drop","app.ai-user-daily-limit=2","app.ai-global-daily-limit=4"})
+/** 验证额度持久化及并发行为。 */
+@SpringBootTest(
+        properties = {
+            "spring.datasource.url=jdbc:h2:mem:quota_test;MODE=MySQL;DB_CLOSE_DELAY=-1",
+            "spring.jpa.hibernate.ddl-auto=create-drop",
+            "app.ai-user-daily-limit=2",
+            "app.ai-global-daily-limit=4"
+        })
 class AiQuotaPersistenceTests {
     @Autowired AiQuotaService service;
     @Autowired AiQuotaRepository repository;
-    @Test void concurrentCallsCannotOverspendAndStartupCannotResetCounters() throws Exception {
-        ExecutorService workers=Executors.newFixedThreadPool(6);
+
+    /** 验证并发不会超额，启动也不会清掉旧计数。 */
+    @Test
+    void concurrentCallsCannotOverspendAndStartupCannotResetCounters() throws Exception {
+        ExecutorService workers = Executors.newFixedThreadPool(6);
         try {
-            var calls=new java.util.ArrayList<Future<Boolean>>();
-            for(int i=0;i<12;i++)calls.add(workers.submit(()->service.acquire(777L)));
-            int admitted=0;for(var call:calls)if(call.get(20,TimeUnit.SECONDS))admitted++;
-            assertEquals(2,admitted);
-            assertEquals(0,service.status(777L).get("remaining"));
-            int global=repository.findById("global").orElseThrow().dayCount;
+            var calls = new java.util.ArrayList<Future<Boolean>>();
+            for (int i = 0; i < 12; i++) calls.add(workers.submit(() -> service.acquire(777L)));
+            int admitted = 0;
+            for (var call : calls) if (call.get(20, TimeUnit.SECONDS)) admitted++;
+            assertEquals(2, admitted);
+            assertEquals(0, service.status(777L).get("remaining"));
+            int global = repository.findById("global").orElseThrow().dayCount;
             service.run();
-            assertEquals(global,repository.findById("global").orElseThrow().dayCount);
+            assertEquals(global, repository.findById("global").orElseThrow().dayCount);
             assertFalse(service.acquire(777L));
-        } finally {workers.shutdownNow();}
+        } finally {
+            workers.shutdownNow();
+        }
     }
 }

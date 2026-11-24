@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# 为本地按需演示打开配置的转发通道。
 set -euo pipefail
 if ! command -v cloudflared >/dev/null 2>&1; then
   printf '%s\n' '未安装 cloudflared。请先按 Cloudflare 官方文档安装；此脚本不会替你下载或注册外部服务。' 'https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/'

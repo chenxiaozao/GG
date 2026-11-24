@@ -18,6 +18,7 @@ const viewports = [
   { name: "mobile", width: 390, height: 844 },
 ];
 
+/** 生成界面测试数据。 */
 function fixture() {
   const products = Array.from({ length: 25 }, (_, i) => ({
     id: i + 1,
@@ -134,6 +135,7 @@ function fixture() {
     failDelete: false,
   };
 }
+/** 拦截测试接口并返回模拟数据。 */
 async function mockApi(context, state) {
   await context.route("**/api/**", async (route) => {
     const request = route.request();
@@ -355,11 +357,13 @@ try {
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
       page.on("dialog", (dialog) => dialog.accept());
+      /** 执行该脚本的一组断言并记录结果。 */
       const check = async (name, fn) => {
         await fn();
         assert.deepEqual(errors, []);
         report.push({ viewport: viewport.name, theme, name, passed: true });
       };
+      /** 检查用户页面在指定设备上的展示。 */
       const screen = async (name) => {
         await page.evaluate(() => window.scrollTo(0, 0));
         await page.waitForTimeout(150);
@@ -533,6 +537,7 @@ try {
       const admin = await adminContext.newPage();
       admin.on("pageerror", (e) => errors.push(e.message));
       admin.on("dialog", (d) => d.accept());
+      /** 检查管理端在指定设备上的展示。 */
       const adminScreen = async (name) => {
         await admin.evaluate(() => window.scrollTo(0, 0));
         await admin.waitForTimeout(150);
@@ -719,9 +724,14 @@ try {
         );
       }),
     ]);
-    const saved = JSON.parse(await readFile(path.join(output, "report.json"), "utf8"));
+    const saved = JSON.parse(
+      await readFile(path.join(output, "report.json"), "utf8"),
+    );
     saved.browserCleanup = cleanup;
-    await writeFile(path.join(output, "report.json"), JSON.stringify(saved, null, 2));
+    await writeFile(
+      path.join(output, "report.json"),
+      JSON.stringify(saved, null, 2),
+    );
   } catch (error) {
     console.warn(error.message);
     process.exitCode = 1;

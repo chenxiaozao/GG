@@ -1,3 +1,4 @@
+/** 测量不同外观主题的文字与背景对比度。 */
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import ts from "typescript";

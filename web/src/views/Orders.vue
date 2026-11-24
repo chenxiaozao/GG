@@ -10,6 +10,7 @@ const loading = ref(false);
 const loadError = ref("");
 const statusFilter = ref("");
 const actingId = ref<number | null>(null);
+/** 按状态筛出要展示的订单。 */
 const visibleOrders = computed(() =>
   orders.value.filter(
     (entry) => !statusFilter.value || entry.order.status === statusFilter.value,
@@ -27,6 +28,17 @@ const statusText: Record<string, string> = {
   CANCELLED: "已取消",
 };
 
+/** 由实付金额加回已保存的抵扣，得到当时下单的商品原金额。 */
+function originalOrderAmount(order: {
+  totalAmount: number;
+  discountAmount?: number;
+}) {
+  return (
+    Number(order.totalAmount) + Number(order.discountAmount ?? 0)
+  ).toFixed(2);
+}
+
+/** 读取订单和相关评价。 */
 async function load() {
   loading.value = true;
   loadError.value = "";
@@ -42,10 +54,12 @@ async function load() {
   }
 }
 
+/** 判断指定订单明细是否已评价。 */
 function isReviewed(orderItemId: number) {
   return reviews.value.some((review) => review.orderItemId === orderItemId);
 }
 
+/** 读取或初始化该订单明细的评价草稿。 */
 function reviewDraft(orderItemId: number) {
   if (!reviewDrafts[orderItemId]) {
     reviewDrafts[orderItemId] = { rating: 5, content: "" };
@@ -53,6 +67,7 @@ function reviewDraft(orderItemId: number) {
   return reviewDrafts[orderItemId];
 }
 
+/** 提交所选订单商品评价。 */
 async function submitReview(orderId: number, item: any) {
   if (submittingItemId.value !== null || actingId.value !== null) return;
   const draft = reviewDraft(item.id);
@@ -79,6 +94,7 @@ async function submitReview(orderId: number, item: any) {
   }
 }
 
+/** 请求付款、取消或确认收货并刷新订单。 */
 async function act(id: number, action: string) {
   if (actingId.value !== null || submittingItemId.value !== null) return;
   if (action === "cancel" && !confirm("确定取消这笔订单吗？")) return;
@@ -190,7 +206,21 @@ onMounted(load);
           </template>
         </div>
       </div>
-      <b>订单金额 ¥{{ entry.order.totalAmount }}</b>
+      <p v-if="Number(entry.order.discountAmount) > 0">
+        商品原金额 ¥{{ originalOrderAmount(entry.order) }} · 换购抵扣 −¥{{
+          Number(entry.order.discountAmount).toFixed(2)
+        }}
+      </p>
+      <b>
+        {{ entry.order.paidAt ? "订单实付" : "订单应付" }} ¥{{
+          Number(entry.order.totalAmount).toFixed(2)
+        }}
+      </b>
+      <p
+        v-if="entry.order.tradeInCreditId && entry.order.status === 'CANCELLED'"
+      >
+        未付款订单已取消；本单使用的旧机折价已退回，按原有效期使用。
+      </p>
       <p class="order-actions">
         <button
           v-if="entry.order.status === 'PENDING'"
@@ -198,7 +228,9 @@ onMounted(load);
           :disabled="actingId !== null || submittingItemId !== null"
           @click="act(entry.order.id, 'pay')"
         >
-          模拟支付
+          {{
+            Number(entry.order.totalAmount) === 0 ? "确认 0 元订单" : "模拟支付"
+          }}
         </button>
         <button
           v-if="entry.order.status === 'PENDING'"

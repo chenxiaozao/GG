@@ -3,9 +3,15 @@ import { resourceUrl } from "../resourceUrl";
 import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 import api from "../api";
 import EmptyState from "../components/EmptyState.vue";
-import AdminAccountPanel from '../components/AdminAccountPanel.vue';
-const maintainingUser=ref<any>(null);
-async function refreshMaintainedAccount(){const id=maintainingUser.value?.id;await load();if(maintainingUser.value?.id===id)maintainingUser.value=users.value.find(user=>user.id===id)||null;}
+import AdminAccountPanel from "../components/AdminAccountPanel.vue";
+const maintainingUser = ref<any>(null);
+/** 重新读取当前维护对象以刷新展示。 */
+async function refreshMaintainedAccount() {
+  const id = maintainingUser.value?.id;
+  await load();
+  if (maintainingUser.value?.id === id)
+    maintainingUser.value = users.value.find((user) => user.id === id) || null;
+}
 
 const dashboard = ref<any>(null);
 const users = ref<any[]>([]);
@@ -67,6 +73,7 @@ const typeText: Record<string, string> = {
 const afterSaleDrafts = reactive<
   Record<number, { status: string; adminReply: string; approvedAmount: number }>
 >({});
+/** 提供新建商品所需的默认表单。 */
 const defaults = () => ({
   name: "",
   subtitle: "",
@@ -91,8 +98,10 @@ const defaults = () => ({
   shippingNote: "",
 });
 const form = reactive<any>(defaults());
+/** 在字段中匹配管理端筛选词。 */
 const matches = (values: unknown[], text: string) =>
   values.join(" ").toLowerCase().includes(text.trim().toLowerCase());
+/** 筛选管理端商品。 */
 const filteredProducts = computed(() =>
   products.value.filter(
     (p) =>
@@ -102,15 +111,18 @@ const filteredProducts = computed(() =>
         String(p.categoryId) === productCategory.value),
   ),
 );
+/** 计算商品列表总页数。 */
 const pages = computed(() =>
   Math.max(1, Math.ceil(filteredProducts.value.length / pageSize)),
 );
+/** 取出当前页商品。 */
 const pagedProducts = computed(() =>
   filteredProducts.value.slice(
     (productPage.value - 1) * pageSize,
     productPage.value * pageSize,
   ),
 );
+/** 筛选管理端订单。 */
 const filteredOrders = computed(() =>
   orders.value.filter(
     (o) =>
@@ -118,9 +130,11 @@ const filteredOrders = computed(() =>
       (!orderStatus.value || o.status === orderStatus.value),
   ),
 );
+/** 筛选管理端账号。 */
 const filteredUsers = computed(() =>
   users.value.filter((u) => matches([u.username, u.nickname], userQuery.value)),
 );
+/** 筛选管理端售后申请。 */
 const filteredServices = computed(() =>
   afterSales.value.filter(
     (s) => !serviceStatus.value || s.status === serviceStatus.value,
@@ -136,15 +150,18 @@ watch(tab, () => {
   shippingId.value = null;
   shippingError.value = "";
 });
+/** 格式化管理端金额。 */
 const money = (amount: unknown) =>
   Number(amount || 0).toLocaleString("zh-CN", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+/** 格式化管理端日期。 */
 const dateText = (value: unknown) =>
   String(value || "—")
     .replace("T", " ")
     .slice(0, 16);
+/** 取得销量图的每日最大值。 */
 const maxDailySales = () =>
   Math.max(
     1,
@@ -152,12 +169,14 @@ const maxDailySales = () =>
       Number(item.amount || 0),
     ),
   );
+/** 取得分类统计图的最大值。 */
 const maxCategorySales = () =>
   Math.max(
     1,
     ...Object.values(dashboard.value?.categorySales || {}).map(Number),
   );
 
+/** 加载管理端数据。 */
 async function load() {
   loading.value = true;
   loadError.value = "";
@@ -185,6 +204,7 @@ async function load() {
     loading.value = false;
   }
 }
+/** 打开产品新增或修改界面。 */
 async function openEditor(product?: any) {
   if (product?.id)
     product = products.value.find((p) => p.id === product.id) || product;
@@ -197,10 +217,12 @@ async function openEditor(product?: any) {
   editor.value?.showModal();
   if (editor.value) editor.value.scrollTop = 0;
 }
+/** 退出商品编辑界面。 */
 function closeEditor() {
   if (busy.value === "save") return;
   editor.value?.close();
 }
+/** 提交商品表单。 */
 async function save() {
   if (busy.value) return;
   editorError.value = "";
@@ -237,6 +259,7 @@ async function save() {
     busy.value = "";
   }
 }
+/** 下架选择的商品。 */
 async function remove(product: any) {
   if (
     busy.value ||
@@ -255,6 +278,7 @@ async function remove(product: any) {
     busy.value = "";
   }
 }
+/** 更改普通账号启用状态。 */
 async function toggle(user: any) {
   if (busy.value || user.role === "ADMIN") return;
   if (
@@ -278,6 +302,7 @@ async function toggle(user: any) {
     busy.value = "";
   }
 }
+/** 准备所选订单的发货表单。 */
 function startShipping(order: any) {
   shippingId.value = order.id;
   Object.assign(shippingForm, { logisticsCompany: "", logisticsNo: "" });
@@ -286,6 +311,7 @@ function startShipping(order: any) {
     document.getElementById("shipping-company-" + order.id)?.focus(),
   );
 }
+/** 提交订单的发货记录。 */
 async function ship(order: any) {
   if (busy.value) return;
   const payload = {
@@ -309,6 +335,7 @@ async function ship(order: any) {
     busy.value = "";
   }
 }
+/** 为所选售后单准备处理表单。 */
 function afterSaleDraft(item: any) {
   if (!afterSaleDrafts[item.id])
     afterSaleDrafts[item.id] = {
@@ -318,6 +345,7 @@ function afterSaleDraft(item: any) {
     };
   return afterSaleDrafts[item.id];
 }
+/** 计算当前售后允许选择的状态。 */
 function allowedAfterSaleStatuses(item: any): string[] {
   if (Array.isArray(item.allowedStatuses)) return item.allowedStatuses;
   // Compatibility with older servers; the current server remains the authority.
@@ -328,11 +356,17 @@ function allowedAfterSaleStatuses(item: any): string[] {
     RETURN_SHIPPED: ["RETURN_SHIPPED", "PROCESSING", "REJECTED"],
     PROCESSING: ["PROCESSING", "COMPLETED", "REJECTED"],
   };
-  return (options[item.status] || []).filter(status =>
-    !(item.type === "REFUND" && status === "WAITING_RETURN") &&
-    !(item.type === "RETURN" && status === "PROCESSING" && ["SUBMITTED", "REVIEWING"].includes(item.status)),
+  return (options[item.status] || []).filter(
+    (status) =>
+      !(item.type === "REFUND" && status === "WAITING_RETURN") &&
+      !(
+        item.type === "RETURN" &&
+        status === "PROCESSING" &&
+        ["SUBMITTED", "REVIEWING"].includes(item.status)
+      ),
   );
 }
+/** 提交售后处理信息。 */
 async function updateAfterSale(item: any) {
   if (busy.value) return;
   const draft = afterSaleDraft(item);
@@ -363,10 +397,10 @@ async function updateAfterSale(item: any) {
     busy.value = "";
   }
 }
+/** 处理商品图加载失败。 */
 function imageFallback(event: Event) {
   const img = event.target as HTMLImageElement;
-  if (!img.src.endsWith("/products/placeholder.svg"))
-    img.src = resourceUrl();
+  if (!img.src.endsWith("/products/placeholder.svg")) img.src = resourceUrl();
 }
 onMounted(load);
 </script>
@@ -688,7 +722,12 @@ onMounted(load);
                 }}</span>
               </td>
               <td>{{ dateText(u.createTime) }}</td>
-              <td>{{u.maskedPhone||'未填写'}}<small class="muted"> · {{u.phoneVerified?'已验证':'未验证'}}</small></td>
+              <td>
+                {{ u.maskedPhone || "未填写"
+                }}<small class="muted">
+                  · {{ u.phoneVerified ? "已验证" : "未验证" }}</small
+                >
+              </td>
               <td>
                 <button
                   class="text-action"
@@ -703,7 +742,13 @@ onMounted(load);
                         : "启用账号"
                   }}
                 </button>
-                <button class="text-action" :disabled="u.role==='ADMIN'||!!busy" @click="maintainingUser=u">维护账号与偏好</button>
+                <button
+                  class="text-action"
+                  :disabled="u.role === 'ADMIN' || !!busy"
+                  @click="maintainingUser = u"
+                >
+                  维护账号与偏好
+                </button>
               </td>
             </tr>
           </tbody>
@@ -716,7 +761,12 @@ onMounted(load);
       />
     </section>
 
-    <AdminAccountPanel v-if="maintainingUser" :user="maintainingUser" @close="maintainingUser=null" @updated="refreshMaintainedAccount" />
+    <AdminAccountPanel
+      v-if="maintainingUser"
+      :user="maintainingUser"
+      @close="maintainingUser = null"
+      @updated="refreshMaintainedAccount"
+    />
     <section v-if="tab === 'order'" class="admin-order-list">
       <div class="admin-tools">
         <label class="tool-search"
@@ -869,7 +919,11 @@ onMounted(load);
               aria-label="处理状态"
               :disabled="!!busy"
             >
-              <option v-for="status in allowedAfterSaleStatuses(item)" :key="status" :value="status">
+              <option
+                v-for="status in allowedAfterSaleStatuses(item)"
+                :key="status"
+                :value="status"
+              >
                 {{ afterSaleStatusText[status] || status }}
               </option>
             </select></label

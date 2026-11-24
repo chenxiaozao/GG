@@ -18,6 +18,7 @@ const { useComparison } = await import(
     ).toString("base64")
 );
 const s = useComparison();
+/** 构造本测试所需的商品样本。 */
 const p = (id, categoryId = 1, type = "ROBOT") => ({
   id,
   categoryId,

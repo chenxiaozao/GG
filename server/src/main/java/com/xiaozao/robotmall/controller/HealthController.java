@@ -10,16 +10,19 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /** Public readiness only: never expose credentials, database addresses or stack traces. */
+/** 提供服务可用性探测。 */
 @RestController
 public class HealthController {
     private final JdbcTemplate database;
     private final ApplicationAvailability availability;
 
+    /** 初始化当前对象及其依赖。 */
     public HealthController(JdbcTemplate database, ApplicationAvailability availability) {
         this.database = database;
         this.availability = availability;
     }
 
+    /** 确认应用已启动且可以查询数据库。 */
     @GetMapping("/api/health")
     public ResponseEntity<ApiResponse<Map<String, String>>> health() {
         if (availability.getReadinessState() == ReadinessState.ACCEPTING_TRAFFIC) {
@@ -31,6 +34,7 @@ public class HealthController {
                 // The public response deliberately omits the connection failure details.
             }
         }
-        return ResponseEntity.status(503).body(new ApiResponse<>(503, "服务尚未就绪", Map.of("status", "DOWN")));
+        return ResponseEntity.status(503)
+                .body(new ApiResponse<>(503, "服务尚未就绪", Map.of("status", "DOWN")));
     }
 }

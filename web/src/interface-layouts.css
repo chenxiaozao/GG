@@ -1,3 +1,4 @@
+/** 网格与不同界面布局模式。 */
 /* Layout and color are independent preferences. Mobile keeps touch-sized controls. */
 .app-shell .appearance-subheading {
   margin: 28px 0 16px;

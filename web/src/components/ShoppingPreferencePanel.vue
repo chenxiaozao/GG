@@ -23,6 +23,7 @@ const categories = [
   "商用服务",
 ];
 const features = ["自动集尘", "避障", "防缠绕", "拖地", "编程", "遥控"];
+/** 用服务端响应刷新页面授权及画像。 */
 function apply(value: any) {
   state.value = value;
   const p = value.preferences || {};
@@ -42,6 +43,7 @@ function apply(value: any) {
     minEndurance: p.minEndurance || 0,
   });
 }
+/** 读取本人画像及授权状态。 */
 async function load() {
   try {
     apply(await api.get("/profile/preferences"));
@@ -49,18 +51,21 @@ async function load() {
     message.value = e.message;
   }
 }
+/** 切换是否允许采集购物偏好。 */
 async function toggleCollection(event: Event) {
   const input = event.target as HTMLInputElement;
   const next = input.checked;
   input.checked = state.value.collectionEnabled;
   await consent(next, state.value.adminSharing);
 }
+/** 切换是否允许管理员查看画像。 */
 async function toggleSharing(event: Event) {
   const input = event.target as HTMLInputElement;
   const next = input.checked;
   input.checked = state.value.adminSharing;
   await consent(true, next);
 }
+/** 提交画像采集和共享开关。 */
 async function consent(enabled: boolean, sharing: boolean) {
   if (busy.value) return;
   if (
@@ -84,6 +89,7 @@ async function consent(enabled: boolean, sharing: boolean) {
     busy.value = false;
   }
 }
+/** 提交用户确认后的偏好。 */
 async function save() {
   busy.value = true;
   message.value = "";
@@ -96,6 +102,7 @@ async function save() {
     busy.value = false;
   }
 }
+/** 清除画像并刷新页面状态。 */
 async function clear() {
   if (!window.confirm("删除档案并撤销收集及管理员查看授权？")) return;
   busy.value = true;

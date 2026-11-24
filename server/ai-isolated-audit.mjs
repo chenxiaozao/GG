@@ -9,7 +9,9 @@ if(!match || !match[1].trim())throw Error('未找到可安全读取的本机API�
 const directory=await mkdtemp(path.join(tmpdir(),'robotmall-live-audit-'));
 const base='http://127.0.0.1:18081/api';
 let child;
+/** 停止由当前脚本启动的测试进程。 */
 async function stop(){if(!child||child.exitCode!==null)return;const closed=new Promise(resolve=>child.once('exit',resolve));child.kill('SIGTERM');await closed;}
+/** 发送测试请求并读取响应。 */
 async function request(endpoint,body){const r=await fetch(base+endpoint,{method:body?'POST':'GET',headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(5000)});return r.json();}
 try{
  child=spawn('java',['-Xmx384m','-jar',path.resolve('target/robotmall-server-1.0.0.jar'),'--spring.profiles.active=on-demand','--server.port=18081',`--spring.datasource.url=jdbc:h2:file:${directory}/robotmall;MODE=MySQL;DATABASE_TO_LOWER=TRUE`,`--app.avatar-dir=${directory}/avatars`,'--app.bootstrap-admin-password=IsolatedAdmin123!','--app.ai-user-daily-limit=3','--deepseek.base-url=https://api.deepseek.com'],{env:{...process.env,DEEPSEEK_API_KEY:match[1]},stdio:'ignore'});

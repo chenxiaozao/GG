@@ -1,3 +1,4 @@
+/** 检查账号工作区的导航与页面布局。 */
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { launchAuditBrowser } from "./audit-browser.mjs";
@@ -9,7 +10,8 @@ const login = await fetch("http://127.0.0.1:8080/api/auth/login", {
   body: JSON.stringify({ username: "user", password: "123456" }),
 }).then((r) => r.json());
 assert.equal(login.code, 200);
-if (login.data.user) login.data = { ...login.data.user, token: login.data.token };
+if (login.data.user)
+  login.data = { ...login.data.user, token: login.data.token };
 const { browser, shutdown } = await launchAuditBrowser({
   headless: true,
   executablePath:
@@ -60,7 +62,9 @@ try {
             "/trade-in",
             "/profile#appearance",
           ]) {
-            await page.goto("http://127.0.0.1:5173" + path, { waitUntil: 'networkidle' });
+            await page.goto("http://127.0.0.1:5173" + path, {
+              waitUntil: "networkidle",
+            });
             await page.locator(".workspace-content > *").first().waitFor();
             assert.equal(
               await page.locator(".top-strip, .profile-nav").count(),

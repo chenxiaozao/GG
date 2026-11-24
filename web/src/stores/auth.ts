@@ -1,11 +1,17 @@
 import { defineStore } from "pinia";
 import api from "../api";
 import { clearAllGuestData, guestMergePayload } from "./guestData";
+/** 安全读取浏览器中的登录用户信息。 */
 function storedUser() {
-  try { const value=JSON.parse(localStorage.getItem('user') || 'null'); return value && typeof value==='object' ? value : null; }
-  catch { return null; }
+  try {
+    const value = JSON.parse(localStorage.getItem("user") || "null");
+    return value && typeof value === "object" ? value : null;
+  } catch {
+    return null;
+  }
 }
 
+/** 维护当前用户及会话操作。 */
 export const useAuthStore = defineStore("auth", {
   state: () => ({
     user: storedUser() as any,
@@ -15,6 +21,7 @@ export const useAuthStore = defineStore("auth", {
     isAdmin: (s) => s.user?.role === "ADMIN",
   },
   actions: {
+    /** 请求登录并迁移访客数据。 */
     async login(username: string, password: string) {
       // 当前后端直接返回用户对象；同时兼容以后改成 { token, user } 的结构。
       const result: any = await api.post("/auth/login", { username, password });
@@ -31,11 +38,16 @@ export const useAuthStore = defineStore("auth", {
         clearAllGuestData();
       }
     },
+    /** 通知后端登出并清理本机会话。 */
     async logout() {
-      try { await api.post("/auth/logout"); }
-      catch (error) { if (localStorage.getItem('token')) throw error; }
+      try {
+        await api.post("/auth/logout");
+      } catch (error) {
+        if (localStorage.getItem("token")) throw error;
+      }
       this.clearSession();
     },
+    /** 移除浏览器中的账号和令牌。 */
     clearSession() {
       localStorage.removeItem("token");
       localStorage.removeItem("user");

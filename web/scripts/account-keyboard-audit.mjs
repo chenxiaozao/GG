@@ -11,6 +11,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   page.setDefaultTimeout(8000);
   await page.goto("http://127.0.0.1:5173/login", { waitUntil: "networkidle" });
+  /** 执行该脚本的一组断言并记录结果。 */
   async function check(name, fn) {
     try {
       await fn();

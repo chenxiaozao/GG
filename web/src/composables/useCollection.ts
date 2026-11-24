@@ -10,6 +10,7 @@ import {
   removeGuestHistory,
 } from "../stores/guestData";
 
+/** 为收藏和历史页提供可复用的加载与批量管理。 */
 export function useCollection(kind: "favorites" | "history") {
   const auth = useAuthStore();
   const products = ref<any[]>([]);
@@ -24,6 +25,7 @@ export function useCollection(kind: "favorites" | "history") {
     kind === "favorites" ? removeGuestFavorite : removeGuestHistory;
   const clearGuest =
     kind === "favorites" ? clearGuestFavorites : clearGuestHistory;
+  /** 根据登录状态从服务端或浏览器读取列表。 */
   async function load() {
     loading.value = true;
     loadError.value = "";
@@ -58,6 +60,7 @@ export function useCollection(kind: "favorites" | "history") {
       loading.value = false;
     }
   }
+  /** 切换单条商品的选中状态。 */
   function toggleSelect(product: any) {
     if (busy.value || loading.value) return;
     const id = Number(product.id);
@@ -65,6 +68,7 @@ export function useCollection(kind: "favorites" | "history") {
       ? selectedIds.value.filter((v) => v !== id)
       : [...selectedIds.value, id];
   }
+  /** 切换可见商品的全选状态。 */
   function selectAll() {
     if (!busy.value)
       selectedIds.value =
@@ -72,6 +76,7 @@ export function useCollection(kind: "favorites" | "history") {
           ? []
           : products.value.map((p) => Number(p.id));
   }
+  /** 从账号或访客记录中移除给定编号。 */
   async function removeIds(ids: number[]) {
     if (busy.value || loading.value) return;
     busy.value = true;
@@ -102,9 +107,11 @@ export function useCollection(kind: "favorites" | "history") {
       busy.value = false;
     }
   }
+  /** 删除一条已选记录。 */
   async function remove(product: any) {
     await removeIds([Number(product.id)]);
   }
+  /** 批量移除已选记录。 */
   async function removeSelected() {
     if (
       busy.value ||
@@ -114,6 +121,7 @@ export function useCollection(kind: "favorites" | "history") {
       return;
     await removeIds([...selectedIds.value]);
   }
+  /** 清除当前集合的全部记录。 */
   async function clearAll() {
     if (
       busy.value ||

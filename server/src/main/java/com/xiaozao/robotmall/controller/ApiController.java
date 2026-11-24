@@ -16,6 +16,7 @@ import com.xiaozao.robotmall.service.AuthService;
 import com.xiaozao.robotmall.service.AfterSalePolicy;
 import com.xiaozao.robotmall.service.CatalogMediaService;
 
+/** 承接商品、个人空间、交易和管理后台的主要业务接口。 */
 @RestController
 @RequestMapping("/api")
 public class ApiController {
@@ -37,7 +38,9 @@ public class ApiController {
     private final CompatibilityRepository compat;
     private final AfterSaleRequestRepository afterSales;
     private final CatalogMediaService media;
+    private final TradeInRepository tradeIns;
 
+    /** 初始化当前对象及其依赖。 */
     public ApiController(
             AuthService a,
             UserRepository u,
@@ -53,7 +56,8 @@ public class ApiController {
             ReviewRepository r,
             CompatibilityRepository co,
             AfterSaleRequestRepository as,
-            CatalogMediaService cm) {
+            CatalogMediaService cm,
+            TradeInRepository ti) {
         auth = a;
         users = u;
         cats = c;
@@ -69,12 +73,15 @@ public class ApiController {
         compat = co;
         afterSales = as;
         media = cm;
+        tradeIns = ti;
     }
 
+    /** 凭会话读取当前账号。 */
     private User me(String t) {
         return auth.current(t);
     }
 
+    /** 确认操作者有管理员权限。 */
     private User admin(String t) {
         User u = me(t);
         if (!"ADMIN".equals(u.role)) {
@@ -83,6 +90,7 @@ public class ApiController {
         return u;
     }
 
+    /** 补齐商品品牌、分类及媒体标签。 */
     private Product enrich(Product product) {
         if (product == null) return null;
         media.describe(product);
@@ -95,7 +103,7 @@ public class ApiController {
         return product;
     }
 
-
+    /** 汇总当前账号的个人空间数据。 */
     @GetMapping("/profile/summary")
     public ApiResponse<?> profileSummary(@RequestHeader("X-Token") String t) {
         User u = me(t);
@@ -105,31 +113,44 @@ public class ApiController {
         result.put("historyCount", histories.findByUserId(u.id).size());
         List<OrderEntity> userOrders = orders.findByUserId(u.id);
         result.put("orderCount", userOrders.size());
-        result.put("pendingPaymentCount", userOrders.stream().filter(x -> "PENDING".equals(x.status)).count());
-        result.put("pendingReceiptCount", userOrders.stream().filter(x -> "SHIPPED".equals(x.status)).count());
-        result.put("recentOrders", userOrders.stream()
-                .sorted(Comparator.comparing((OrderEntity x) -> x.createdAt).reversed())
-                .limit(3).toList());
+        result.put(
+                "pendingPaymentCount",
+                userOrders.stream().filter(x -> "PENDING".equals(x.status)).count());
+        result.put(
+                "pendingReceiptCount",
+                userOrders.stream().filter(x -> "SHIPPED".equals(x.status)).count());
+        result.put(
+                "recentOrders",
+                userOrders.stream()
+                        .sorted(Comparator.comparing((OrderEntity x) -> x.createdAt).reversed())
+                        .limit(3)
+                        .toList());
 
-        List<Map<String, Object>> recentProducts = histories.findByUserId(u.id).stream()
-                .sorted(Comparator.comparing((History x) -> x.viewedAt).reversed())
-                .limit(4)
-                .map(record -> {
-                    Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("viewTime", record.viewedAt);
-                    row.put("product", products.findById(record.productId).map(this::enrich).orElse(null));
-                    return row;
-                })
-                .filter(row -> row.get("product") != null)
-                .toList();
+        List<Map<String, Object>> recentProducts =
+                histories.findByUserId(u.id).stream()
+                        .sorted(Comparator.comparing((History x) -> x.viewedAt).reversed())
+                        .limit(4)
+                        .map(
+                                record -> {
+                                    Map<String, Object> row = new LinkedHashMap<>();
+                                    row.put("viewTime", record.viewedAt);
+                                    row.put(
+                                            "product",
+                                            products.findById(record.productId)
+                                                    .map(this::enrich)
+                                                    .orElse(null));
+                                    return row;
+                                })
+                        .filter(row -> row.get("product") != null)
+                        .toList();
         result.put("recentProducts", recentProducts);
         return ApiResponse.ok(result);
     }
 
+    /** 验证并保存个人主题设置。 */
     @PutMapping("/profile/theme")
     public ApiResponse<?> updateTheme(
-            @RequestHeader("X-Token") String t,
-            @RequestBody Map<String, String> body) {
+            @RequestHeader("X-Token") String t, @RequestBody Map<String, String> body) {
         User u = me(t);
         String theme = body.getOrDefault("theme", "classic");
         if (!Set.of("classic", "midnight", "warm", "custom").contains(theme)) {
@@ -140,8 +161,12 @@ public class ApiController {
         if (!accent.matches("^#[0-9a-fA-F]{6}$") || !background.matches("^#[0-9a-fA-F]{6}$")) {
             throw new BizException("颜色格式不正确");
         }
-        String layout = body.getOrDefault("interfaceLayout", Objects.requireNonNullElse(u.interfaceLayout, "standard"));
-        if (!Set.of("standard", "editorial", "compact").contains(layout)) throw new BizException("界面布局不正确");
+        String layout =
+                body.getOrDefault(
+                        "interfaceLayout",
+                        Objects.requireNonNullElse(u.interfaceLayout, "standard"));
+        if (!Set.of("standard", "editorial", "compact").contains(layout))
+            throw new BizException("界面布局不正确");
         u.theme = theme;
         u.accentColor = accent;
         u.backgroundColor = background;
@@ -150,29 +175,42 @@ public class ApiController {
         return ApiResponse.ok(u);
     }
 
+    /** 保存当前用户的个人资料。 */
     @PutMapping("/profile")
-    public ApiResponse<?> updateProfile(@RequestHeader("X-Token") String t, @RequestBody Map<String, String> body) {
+    public ApiResponse<?> updateProfile(
+            @RequestHeader("X-Token") String t, @RequestBody Map<String, String> body) {
         User u = me(t);
-        return ApiResponse.ok(auth.updateProfile(u, body.get("nickname"), body.get("phone"), body.get("email"), body.get("avatar")));
+        return ApiResponse.ok(
+                auth.updateProfile(
+                        u,
+                        body.get("nickname"),
+                        body.get("phone"),
+                        body.get("email"),
+                        body.get("avatar")));
     }
 
+    /** 校验旧密码后更新密码并撤销会话。 */
     @PutMapping("/profile/password")
-    public ApiResponse<?> changePassword(@RequestHeader("X-Token") String t, @RequestBody Map<String, String> body) {
+    public ApiResponse<?> changePassword(
+            @RequestHeader("X-Token") String t, @RequestBody Map<String, String> body) {
         auth.changePassword(me(t), body.get("oldPassword"), body.get("newPassword"));
         return ApiResponse.ok();
     }
 
+    /** 验证头像图片并保存文件与地址。 */
     @PostMapping("/profile/avatar")
-    public ApiResponse<?> uploadAvatar(@RequestHeader("X-Token") String t, @RequestParam("file") MultipartFile file) {
+    public ApiResponse<?> uploadAvatar(
+            @RequestHeader("X-Token") String t, @RequestParam("file") MultipartFile file) {
         User u = me(t);
         if (file == null || file.isEmpty()) throw new BizException("请选择头像图片");
         if (file.getSize() > 2 * 1024 * 1024) throw new BizException("头像文件不能超过 2MB");
         String contentType = Objects.toString(file.getContentType(), "").toLowerCase(Locale.ROOT);
-        String extension = switch (contentType) {
-            case "image/jpeg" -> "jpg";
-            case "image/png" -> "png";
-            default -> throw new BizException("头像上传仅接收 JPG 或 PNG 图片");
-        };
+        String extension =
+                switch (contentType) {
+                    case "image/jpeg" -> "jpg";
+                    case "image/png" -> "png";
+                    default -> throw new BizException("头像上传仅接收 JPG 或 PNG 图片");
+                };
         try {
             if (ImageIO.read(file.getInputStream()) == null) throw new BizException("无法识别头像图片内容");
         } catch (BizException error) {
@@ -186,9 +224,17 @@ public class ApiController {
             String filename = u.id + "-" + System.currentTimeMillis() + "." + extension;
             file.transferTo(directory.resolve(filename));
             try (Stream<Path> existing = Files.list(directory)) {
-                existing.filter(path -> path.getFileName().toString().startsWith(u.id + "-") && !path.getFileName().toString().equals(filename)).forEach(path -> {
-                    try { Files.deleteIfExists(path); } catch (Exception ignored) { }
-                });
+                existing.filter(
+                                path ->
+                                        path.getFileName().toString().startsWith(u.id + "-")
+                                                && !path.getFileName().toString().equals(filename))
+                        .forEach(
+                                path -> {
+                                    try {
+                                        Files.deleteIfExists(path);
+                                    } catch (Exception ignored) {
+                                    }
+                                });
             }
             u.avatar = "/uploads/avatars/" + filename;
             users.save(u);
@@ -198,10 +244,10 @@ public class ApiController {
         }
     }
 
+    /** 将访客购物车、收藏和历史并入登录账号。 */
     @PostMapping("/profile/merge-guest")
     public ApiResponse<?> mergeGuestData(
-            @RequestHeader("X-Token") String t,
-            @RequestBody Map<String, Object> body) {
+            @RequestHeader("X-Token") String t, @RequestBody Map<String, Object> body) {
         User u = me(t);
         int mergedCart = 0;
         int mergedFavorites = 0;
@@ -210,7 +256,8 @@ public class ApiController {
         Object cartValue = body.get("cart");
         if (cartValue instanceof List<?> guestCart) {
             for (Object value : guestCart.stream().limit(100).toList()) {
-                if (!(value instanceof Map<?, ?> row) || !(row.get("productId") instanceof Number productNumber)) continue;
+                if (!(value instanceof Map<?, ?> row)
+                        || !(row.get("productId") instanceof Number productNumber)) continue;
                 long productId = productNumber.longValue();
                 Product product = products.findById(productId).filter(x -> x.enabled).orElse(null);
                 if (product == null || product.stock < 1) continue;
@@ -253,8 +300,11 @@ public class ApiController {
                 if (!(value instanceof Number number)) continue;
                 long productId = number.longValue();
                 if (products.findById(productId).filter(x -> x.enabled).isEmpty()) continue;
-                History history = histories.findByUserId(u.id).stream()
-                        .filter(x -> Objects.equals(x.productId, productId)).findFirst().orElseGet(History::new);
+                History history =
+                        histories.findByUserId(u.id).stream()
+                                .filter(x -> Objects.equals(x.productId, productId))
+                                .findFirst()
+                                .orElseGet(History::new);
                 history.userId = u.id;
                 history.productId = productId;
                 history.viewedAt = LocalDateTime.now();
@@ -270,21 +320,23 @@ public class ApiController {
         return ApiResponse.ok(result);
     }
 
+    /** 读取商城分类。 */
     @GetMapping("/categories")
     public ApiResponse<?> categories() {
-        return ApiResponse.ok(cats.findAll().stream()
-                .filter(x -> x.enabled)
-                .sorted(Comparator.comparingInt((Category x) -> x.sortNo))
-                .toList());
+        return ApiResponse.ok(
+                cats.findAll().stream()
+                        .filter(x -> x.enabled)
+                        .sorted(Comparator.comparingInt((Category x) -> x.sortNo))
+                        .toList());
     }
 
+    /** 读取商城品牌。 */
     @GetMapping("/brands")
     public ApiResponse<?> brands() {
-        return ApiResponse.ok(brands.findAll().stream()
-                .filter(x -> x.enabled)
-                .toList());
+        return ApiResponse.ok(brands.findAll().stream().filter(x -> x.enabled).toList());
     }
 
+    /** 按查询条件筛选并排序在售商品。 */
     @GetMapping("/products")
     public ApiResponse<?> products(
             @RequestParam(defaultValue = "") String keyword,
@@ -296,43 +348,62 @@ public class ApiController {
             @RequestParam(required = false) Double minPayload,
             @RequestParam(defaultValue = "") String intelligence,
             @RequestParam(defaultValue = "sales") String sort) {
-        List<Product> list = products.findAll().stream()
-                .filter(x -> x.enabled)
-                .filter(x -> keyword.isBlank()
-                        || x.name.toLowerCase().contains(keyword.toLowerCase())
-                        || Optional.ofNullable(x.subtitle).orElse("").contains(keyword))
-                .filter(x -> categoryId == null || Objects.equals(x.categoryId, categoryId))
-                .filter(x -> brandId == null || Objects.equals(x.brandId, brandId))
-                .filter(x -> minPrice == null || x.price.compareTo(minPrice) >= 0)
-                .filter(x -> maxPrice == null || x.price.compareTo(maxPrice) <= 0)
-                .filter(x -> minEndurance == null || Optional.ofNullable(x.enduranceMinutes).orElse(0) >= minEndurance)
-                .filter(x -> minPayload == null || Optional.ofNullable(x.payloadKg).orElse(0d) >= minPayload)
-                .filter(x -> intelligence.isBlank() || intelligence.equals(x.intelligenceLevel))
-                .collect(Collectors.toList());
+        List<Product> list =
+                products.findAll().stream()
+                        .filter(x -> x.enabled)
+                        .filter(
+                                x ->
+                                        keyword.isBlank()
+                                                || x.name.toLowerCase()
+                                                        .contains(keyword.toLowerCase())
+                                                || Optional.ofNullable(x.subtitle)
+                                                        .orElse("")
+                                                        .contains(keyword))
+                        .filter(x -> categoryId == null || Objects.equals(x.categoryId, categoryId))
+                        .filter(x -> brandId == null || Objects.equals(x.brandId, brandId))
+                        .filter(x -> minPrice == null || x.price.compareTo(minPrice) >= 0)
+                        .filter(x -> maxPrice == null || x.price.compareTo(maxPrice) <= 0)
+                        .filter(
+                                x ->
+                                        minEndurance == null
+                                                || Optional.ofNullable(x.enduranceMinutes).orElse(0)
+                                                        >= minEndurance)
+                        .filter(
+                                x ->
+                                        minPayload == null
+                                                || Optional.ofNullable(x.payloadKg).orElse(0d)
+                                                        >= minPayload)
+                        .filter(
+                                x ->
+                                        intelligence.isBlank()
+                                                || intelligence.equals(x.intelligenceLevel))
+                        .collect(Collectors.toList());
 
-        Comparator<Product> cp = switch (sort) {
-            case "priceAsc" -> Comparator.comparing((Product x) -> x.price);
-            case "priceDesc" -> Comparator.comparing((Product x) -> x.price).reversed();
-            case "rating" -> Comparator.comparingDouble((Product x) -> x.rating).reversed();
-            default -> Comparator.comparingInt((Product x) -> x.sales).reversed();
-        };
+        Comparator<Product> cp =
+                switch (sort) {
+                    case "priceAsc" -> Comparator.comparing((Product x) -> x.price);
+                    case "priceDesc" -> Comparator.comparing((Product x) -> x.price).reversed();
+                    case "rating" -> Comparator.comparingDouble((Product x) -> x.rating).reversed();
+                    default -> Comparator.comparingInt((Product x) -> x.sales).reversed();
+                };
 
         list.sort(cp);
         list.forEach(this::enrich);
         return ApiResponse.ok(list);
     }
 
+    /** 读取商品详情并在登录时记录浏览。 */
     @GetMapping("/products/{id}")
     public ApiResponse<?> product(
-            @PathVariable Long id,
-            @RequestHeader(value = "X-Token", required = false) String t) {
+            @PathVariable Long id, @RequestHeader(value = "X-Token", required = false) String t) {
         Product p = products.findById(id).orElseThrow(() -> new BizException("商品不存在"));
         if (t != null && !t.isBlank()) {
             try {
                 User u = me(t);
-                List<History> hList = histories.findByUserId(u.id).stream()
-                        .filter(h -> Objects.equals(h.productId, id))
-                        .toList();
+                List<History> hList =
+                        histories.findByUserId(u.id).stream()
+                                .filter(h -> Objects.equals(h.productId, id))
+                                .toList();
                 if (hList.isEmpty()) {
                     History h = new History();
                     h.userId = u.id;
@@ -350,14 +421,17 @@ public class ApiController {
         return ApiResponse.ok(enrich(p));
     }
 
+    /** 读取商品的可见评价。 */
     @GetMapping("/products/{id}/reviews")
     public ApiResponse<?> productReviews(@PathVariable Long id) {
         products.findById(id).orElseThrow(() -> new BizException("商品不存在"));
-        return ApiResponse.ok(reviews.findByProductIdAndVisibleTrue(id).stream()
-                .sorted(Comparator.comparing((Review x) -> x.createdAt).reversed())
-                .toList());
+        return ApiResponse.ok(
+                reviews.findByProductIdAndVisibleTrue(id).stream()
+                        .sorted(Comparator.comparing((Review x) -> x.createdAt).reversed())
+                        .toList());
     }
 
+    /** 校验候选数量、类型和分类并返回对比商品。 */
     @PostMapping("/products/compare")
     public ApiResponse<?> compare(@RequestBody List<Long> ids) {
         if (ids == null || ids.size() < 2 || ids.size() > 4) {
@@ -365,9 +439,10 @@ public class ApiController {
         }
         List<Long> uniqueIds = ids.stream().filter(Objects::nonNull).distinct().toList();
         if (uniqueIds.size() != ids.size()) throw new BizException("不能重复选择同一件商品");
-        Map<Long, Product> byId = products.findAllById(uniqueIds).stream()
-                .filter(x -> x.enabled && "ROBOT".equals(x.type))
-                .collect(Collectors.toMap(x -> x.id, x -> x));
+        Map<Long, Product> byId =
+                products.findAllById(uniqueIds).stream()
+                        .filter(x -> x.enabled && "ROBOT".equals(x.type))
+                        .collect(Collectors.toMap(x -> x.id, x -> x));
         if (byId.size() != uniqueIds.size()) throw new BizException("部分商品不存在或不可参与对比");
         List<Product> list = uniqueIds.stream().map(byId::get).toList();
         Long categoryId = list.get(0).categoryId;
@@ -378,106 +453,156 @@ public class ApiController {
         return ApiResponse.ok(list);
     }
 
+    /** 读取与主机关联的在售配件。 */
     @GetMapping("/products/{id}/accessories")
     public ApiResponse<?> accessories(@PathVariable Long id) {
         List<Compatibility> clist = compat.findByRobotProductId(id);
         Set<Long> aid = clist.stream().map(x -> x.accessoryProductId).collect(Collectors.toSet());
-        List<Product> list = products.findAllById(aid).stream()
-                .filter(x -> x.enabled)
-                .toList();
+        List<Product> list = products.findAllById(aid).stream().filter(x -> x.enabled).toList();
         list.forEach(this::enrich);
         return ApiResponse.ok(list);
     }
 
+    /** 查询主机与配件是否存在适配关系。 */
     @GetMapping("/compatibility/check")
-    public ApiResponse<?> checkCompat(
-            @RequestParam Long mainId,
-            @RequestParam Long accessoryId) {
+    public ApiResponse<?> checkCompat(@RequestParam Long mainId, @RequestParam Long accessoryId) {
         Product main = products.findById(mainId).orElseThrow(() -> new BizException("机器人商品不存在"));
-        Product accessory = products.findById(accessoryId).orElseThrow(() -> new BizException("配件商品不存在"));
+        Product accessory =
+                products.findById(accessoryId).orElseThrow(() -> new BizException("配件商品不存在"));
         if (!"ROBOT".equals(main.type) || !"ACCESSORY".equals(accessory.type)) {
             throw new BizException("请选择机器人主机和配件商品");
         }
-        Compatibility c = compat.findByRobotProductIdAndAccessoryProductId(mainId, accessoryId).orElse(null);
+        Compatibility c =
+                compat.findByRobotProductIdAndAccessoryProductId(mainId, accessoryId).orElse(null);
         Map<String, Object> result = new HashMap<>();
         result.put("compatible", c != null);
         result.put("note", c != null ? c.note : "平台暂未建立该型号的适配关系，请联系运营人员确认");
         return ApiResponse.ok(result);
     }
 
+    /** 根据已录入关系返回详细适配依据。 */
     @PostMapping("/compatibility/analyze")
     public ApiResponse<?> analyzeCompatibility(@RequestBody Map<String, Object> body) {
         Long mainId = numberAsLong(body.get("mainId"), "请选择机器人主机");
         Long accessoryId = numberAsLong(body.get("accessoryId"), "请选择候选配件");
         Product main = products.findById(mainId).orElseThrow(() -> new BizException("机器人商品不存在"));
-        Product accessory = products.findById(accessoryId).orElseThrow(() -> new BizException("配件商品不存在"));
+        Product accessory =
+                products.findById(accessoryId).orElseThrow(() -> new BizException("配件商品不存在"));
         if (!"ROBOT".equals(main.type) || !"ACCESSORY".equals(accessory.type)) {
             throw new BizException("请选择机器人主机和配件商品");
         }
-        Compatibility relation = compat.findByRobotProductIdAndAccessoryProductId(mainId, accessoryId).orElse(null);
+        Compatibility relation =
+                compat.findByRobotProductIdAndAccessoryProductId(mainId, accessoryId).orElse(null);
         boolean confirmed = relation != null;
-        String level = confirmed ? Objects.toString(relation.compatibilityLevel, "COMPATIBLE") : "UNVERIFIED";
+        String level =
+                confirmed
+                        ? Objects.toString(relation.compatibilityLevel, "COMPATIBLE")
+                        : "UNVERIFIED";
         List<Map<String, Object>> checks = new ArrayList<>();
-        checks.add(compatCheck("型号关系", confirmed ? "PASS" : "UNKNOWN",
-                confirmed ? valueOr(relation.supportedModels, "已录入主机与配件的适配关系") : "适配库中没有找到该组合"));
-        checks.add(compatCheck("接口与连接", confirmed && relation.interfaceType != null ? "PASS" : "UNKNOWN",
-                confirmed ? valueOr(relation.interfaceType, "暂无独立接口说明") : "需核对接口、电压、通信协议及安装方式"));
-        checks.add(compatCheck("尺寸与结构", confirmed && relation.sizeRequirement != null ? "PASS" : "UNKNOWN",
-                confirmed ? valueOr(relation.sizeRequirement, "未设置额外尺寸限制") : "需核对物理尺寸、安装位和承重限制"));
-        checks.add(compatCheck("型号代际", confirmed && relation.generationRequirement != null ? "PASS" : "UNKNOWN",
-                confirmed ? valueOr(relation.generationRequirement, "已按当前型号关系确认") : "同品牌不同代际也可能不通用"));
-        checks.add(compatCheck("软件与固件", confirmed && relation.firmwareRequirement != null ? "PASS" : "UNKNOWN",
-                confirmed ? valueOr(relation.firmwareRequirement, "无已知固件限制") : "如属于智能配件，请确认 App 和固件版本"));
+        checks.add(
+                compatCheck(
+                        "型号关系",
+                        confirmed ? "PASS" : "UNKNOWN",
+                        confirmed
+                                ? valueOr(relation.supportedModels, "已录入主机与配件的适配关系")
+                                : "适配库中没有找到该组合"));
+        checks.add(
+                compatCheck(
+                        "接口与连接",
+                        confirmed && relation.interfaceType != null ? "PASS" : "UNKNOWN",
+                        confirmed
+                                ? valueOr(relation.interfaceType, "暂无独立接口说明")
+                                : "需核对接口、电压、通信协议及安装方式"));
+        checks.add(
+                compatCheck(
+                        "尺寸与结构",
+                        confirmed && relation.sizeRequirement != null ? "PASS" : "UNKNOWN",
+                        confirmed
+                                ? valueOr(relation.sizeRequirement, "未设置额外尺寸限制")
+                                : "需核对物理尺寸、安装位和承重限制"));
+        checks.add(
+                compatCheck(
+                        "型号代际",
+                        confirmed && relation.generationRequirement != null ? "PASS" : "UNKNOWN",
+                        confirmed
+                                ? valueOr(relation.generationRequirement, "已按当前型号关系确认")
+                                : "同品牌不同代际也可能不通用"));
+        checks.add(
+                compatCheck(
+                        "软件与固件",
+                        confirmed && relation.firmwareRequirement != null ? "PASS" : "UNKNOWN",
+                        confirmed
+                                ? valueOr(relation.firmwareRequirement, "无已知固件限制")
+                                : "如属于智能配件，请确认 App 和固件版本"));
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("level", level);
         result.put("compatible", confirmed && !"INCOMPATIBLE".equals(level));
         result.put("confidence", confirmed ? ("CONDITIONAL".equals(level) ? 78 : 96) : 28);
-        result.put("title", confirmed ? ("CONDITIONAL".equals(level) ? "有条件适配" : "已确认适配") : "暂无充分依据");
-        result.put("summary", confirmed ? valueOr(relation.note, "平台已建立该组合的适配关系") : "未建立关系不等于一定不兼容，也不能作为可安全使用的依据。");
-        result.put("riskNote", confirmed ? valueOr(relation.riskNote, "安装前仍应核对商品包装和官方说明") : "建议暂缓购买，联系品牌或平台客服确认完整型号、代际和接口。");
+        result.put(
+                "title", confirmed ? ("CONDITIONAL".equals(level) ? "有条件适配" : "已确认适配") : "暂无充分依据");
+        result.put(
+                "summary",
+                confirmed
+                        ? valueOr(relation.note, "平台已建立该组合的适配关系")
+                        : "未建立关系不等于一定不兼容，也不能作为可安全使用的依据。");
+        result.put(
+                "riskNote",
+                confirmed
+                        ? valueOr(relation.riskNote, "安装前仍应核对商品包装和官方说明")
+                        : "建议暂缓购买，联系品牌或平台客服确认完整型号、代际和接口。");
         result.put("checks", checks);
         result.put("mainProduct", enrich(main));
         result.put("accessoryProduct", enrich(accessory));
         return ApiResponse.ok(result);
     }
 
+    /** 验证并提取数字编号。 */
     private Long numberAsLong(Object value, String message) {
         if (!(value instanceof Number number)) throw new BizException(message);
         return number.longValue();
     }
 
+    /** 组装单条适配检查说明。 */
     private Map<String, Object> compatCheck(String name, String status, String detail) {
         Map<String, Object> row = new LinkedHashMap<>();
-        row.put("name", name); row.put("status", status); row.put("detail", detail);
+        row.put("name", name);
+        row.put("status", status);
+        row.put("detail", detail);
         return row;
     }
 
+    /** 在文本缺失时使用默认说明。 */
     private String valueOr(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
     }
 
-
-
+    /** 读取当前账号购物车和商品明细。 */
     @GetMapping("/cart")
     public ApiResponse<?> cart(@RequestHeader("X-Token") String t) {
         User u = me(t);
-        List<Map<String, Object>> result = carts.findByUserId(u.id).stream().map(item -> {
-            Map<String, Object> row = new HashMap<>();
-            row.put("id", item.id);
-            row.put("productId", item.productId);
-            row.put("quantity", item.quantity);
-            row.put("selectedSku", item.selectedSku);
-            row.put("product", products.findById(item.productId).orElse(null));
-            return row;
-        }).toList();
+        List<Map<String, Object>> result =
+                carts.findByUserId(u.id).stream()
+                        .map(
+                                item -> {
+                                    Map<String, Object> row = new HashMap<>();
+                                    row.put("id", item.id);
+                                    row.put("productId", item.productId);
+                                    row.put("quantity", item.quantity);
+                                    row.put("selectedSku", item.selectedSku);
+                                    row.put(
+                                            "product",
+                                            products.findById(item.productId).orElse(null));
+                                    return row;
+                                })
+                        .toList();
         return ApiResponse.ok(result);
     }
 
+    /** 校验商品和库存后加入购物车。 */
     @PostMapping("/cart")
     public ApiResponse<?> addCart(
-            @RequestHeader("X-Token") String t,
-            @RequestBody Map<String, Object> body) {
+            @RequestHeader("X-Token") String t, @RequestBody Map<String, Object> body) {
         User u = me(t);
         Long pid = ((Number) body.get("productId")).longValue();
         int qty = ((Number) body.getOrDefault("quantity", 1)).intValue();
@@ -499,6 +624,7 @@ public class ApiController {
         return ApiResponse.ok(item);
     }
 
+    /** 更新本人购物车记录的数量。 */
     @PutMapping("/cart/{id}")
     public ApiResponse<?> updateCart(
             @RequestHeader("X-Token") String t,
@@ -508,7 +634,8 @@ public class ApiController {
         CartItem item = carts.findById(id).orElseThrow(() -> new BizException("购物车项不存在"));
         if (!Objects.equals(item.userId, u.id)) throw new BizException("无权修改");
         int qty = ((Number) body.get("quantity")).intValue();
-        Product product = products.findById(item.productId).orElseThrow(() -> new BizException("商品不存在"));
+        Product product =
+                products.findById(item.productId).orElseThrow(() -> new BizException("商品不存在"));
         if (!product.enabled) throw new BizException("商品已下架");
         if (qty < 1 || qty > product.stock) throw new BizException("数量不合法或超过库存");
         item.quantity = qty;
@@ -516,10 +643,9 @@ public class ApiController {
         return ApiResponse.ok(item);
     }
 
+    /** 移除本人购物车的单条记录。 */
     @DeleteMapping("/cart/{id}")
-    public ApiResponse<?> removeCart(
-            @RequestHeader("X-Token") String t,
-            @PathVariable Long id) {
+    public ApiResponse<?> removeCart(@RequestHeader("X-Token") String t, @PathVariable Long id) {
         User u = me(t);
         CartItem item = carts.findById(id).orElseThrow(() -> new BizException("购物车项不存在"));
         if (!Objects.equals(item.userId, u.id)) {
@@ -529,6 +655,7 @@ public class ApiController {
         return ApiResponse.ok();
     }
 
+    /** 清空本人购物车。 */
     @DeleteMapping("/cart")
     public ApiResponse<?> clearCart(@RequestHeader("X-Token") String t) {
         User u = me(t);
@@ -536,22 +663,21 @@ public class ApiController {
         return ApiResponse.ok();
     }
 
+    /** 读取本人收藏的商品。 */
     @GetMapping("/favorites")
     public ApiResponse<?> favorites(@RequestHeader("X-Token") String t) {
         User u = me(t);
         List<Favorite> list = favs.findByUserId(u.id);
         Set<Long> pid = list.stream().map(x -> x.productId).collect(Collectors.toSet());
-        List<Product> plist = products.findAllById(pid).stream()
-                .filter(x -> x.enabled)
-                .toList();
+        List<Product> plist = products.findAllById(pid).stream().filter(x -> x.enabled).toList();
         plist.forEach(this::enrich);
         return ApiResponse.ok(plist);
     }
 
+    /** 在收藏与取消收藏间切换。 */
     @PostMapping("/favorites/{pid}")
     public ApiResponse<?> toggleFavorite(
-            @RequestHeader("X-Token") String t,
-            @PathVariable Long pid) {
+            @RequestHeader("X-Token") String t, @PathVariable Long pid) {
         User u = me(t);
         Optional<Favorite> optFav = favs.findByUserIdAndProductId(u.id, pid);
         if (optFav.isEmpty()) {
@@ -566,13 +692,16 @@ public class ApiController {
         }
     }
 
+    /** 取消本人对指定商品的收藏。 */
     @DeleteMapping("/favorites/{pid}")
-    public ApiResponse<?> removeFavorite(@RequestHeader("X-Token") String t, @PathVariable Long pid) {
+    public ApiResponse<?> removeFavorite(
+            @RequestHeader("X-Token") String t, @PathVariable Long pid) {
         User u = me(t);
         favs.findByUserIdAndProductId(u.id, pid).ifPresent(favs::delete);
         return ApiResponse.ok(true);
     }
 
+    /** 清空当前账号收藏。 */
     @DeleteMapping("/favorites")
     public ApiResponse<?> clearFavorites(@RequestHeader("X-Token") String t) {
         User u = me(t);
@@ -580,40 +709,48 @@ public class ApiController {
         return ApiResponse.ok();
     }
 
+    /** 按浏览时间读取当前账号历史。 */
     @GetMapping("/history")
     public ApiResponse<?> history(@RequestHeader("X-Token") String t) {
         User u = me(t);
-        List<History> list = histories.findByUserId(u.id).stream()
-                .sorted(Comparator.comparing((History x) -> x.viewedAt).reversed())
-                .limit(20)
-                .toList();
+        List<History> list =
+                histories.findByUserId(u.id).stream()
+                        .sorted(Comparator.comparing((History x) -> x.viewedAt).reversed())
+                        .limit(20)
+                        .toList();
         Set<Long> pid = list.stream().map(x -> x.productId).collect(Collectors.toSet());
-        Map<Long, Product> pmap = products.findAllById(pid).stream()
-                .filter(x -> x.enabled)
-                .collect(Collectors.toMap(x -> x.id, x -> x));
-        List<Map<String, Object>> result = list.stream()
-                .filter(x -> pmap.containsKey(x.productId))
-                .map(x -> {
-                    Map<String, Object> m = new HashMap<>();
-                    m.put("product", pmap.get(x.productId));
-                    m.put("viewTime", x.viewedAt);
-                    return m;
-                })
-                .toList();
+        Map<Long, Product> pmap =
+                products.findAllById(pid).stream()
+                        .filter(x -> x.enabled)
+                        .collect(Collectors.toMap(x -> x.id, x -> x));
+        List<Map<String, Object>> result =
+                list.stream()
+                        .filter(x -> pmap.containsKey(x.productId))
+                        .map(
+                                x -> {
+                                    Map<String, Object> m = new HashMap<>();
+                                    m.put("product", pmap.get(x.productId));
+                                    m.put("viewTime", x.viewedAt);
+                                    return m;
+                                })
+                        .toList();
         return ApiResponse.ok(result);
     }
 
+    /** 移除本人对指定商品的浏览记录。 */
     @DeleteMapping("/history/{productId}")
     public ApiResponse<?> removeHistory(
-            @RequestHeader("X-Token") String t,
-            @PathVariable Long productId) {
+            @RequestHeader("X-Token") String t, @PathVariable Long productId) {
         User u = me(t);
-        List<History> matched = histories.findByUserId(u.id).stream()
-                .filter(x -> Objects.equals(x.productId, productId)).toList();
+        List<History> matched =
+                histories.findByUserId(u.id).stream()
+                        .filter(x -> Objects.equals(x.productId, productId))
+                        .toList();
         histories.deleteAll(matched);
         return ApiResponse.ok();
     }
 
+    /** 清空当前账号浏览记录。 */
     @DeleteMapping("/history")
     public ApiResponse<?> clearHistory(@RequestHeader("X-Token") String t) {
         User u = me(t);
@@ -621,16 +758,16 @@ public class ApiController {
         return ApiResponse.ok();
     }
 
+    /** 读取本人收货地址。 */
     @GetMapping("/addresses")
     public ApiResponse<?> addresses(@RequestHeader("X-Token") String t) {
         User u = me(t);
         return ApiResponse.ok(addresses.findByUserId(u.id));
     }
 
+    /** 新增地址并协调默认地址。 */
     @PostMapping("/addresses")
-    public ApiResponse<?> addAddress(
-            @RequestHeader("X-Token") String t,
-            @RequestBody Address a) {
+    public ApiResponse<?> addAddress(@RequestHeader("X-Token") String t, @RequestBody Address a) {
         User u = me(t);
         validateAddress(a);
         a.userId = u.id;
@@ -640,11 +777,10 @@ public class ApiController {
         return ApiResponse.ok(a);
     }
 
+    /** 校验归属后更新地址。 */
     @PutMapping("/addresses/{id}")
     public ApiResponse<?> updateAddress(
-            @RequestHeader("X-Token") String t,
-            @PathVariable Long id,
-            @RequestBody Address a) {
+            @RequestHeader("X-Token") String t, @PathVariable Long id, @RequestBody Address a) {
         User u = me(t);
         Address old = addresses.findById(id).orElseThrow(() -> new BizException("地址不存在"));
         if (!Objects.equals(old.userId, u.id)) {
@@ -663,10 +799,9 @@ public class ApiController {
         return ApiResponse.ok(old);
     }
 
+    /** 校验归属后移除地址。 */
     @DeleteMapping("/addresses/{id}")
-    public ApiResponse<?> removeAddress(
-            @RequestHeader("X-Token") String t,
-            @PathVariable Long id) {
+    public ApiResponse<?> removeAddress(@RequestHeader("X-Token") String t, @PathVariable Long id) {
         User u = me(t);
         Address a = addresses.findById(id).orElseThrow(() -> new BizException("地址不存在"));
         if (!Objects.equals(a.userId, u.id)) {
@@ -681,52 +816,78 @@ public class ApiController {
         return ApiResponse.ok();
     }
 
+    /** 检查收件人、手机号与地址字段。 */
     private void validateAddress(Address a) {
-        if (a.receiver == null || a.receiver.trim().isBlank() || a.receiver.trim().length() > 30) throw new BizException("请填写正确的收货人姓名");
-        if (a.phone == null || !a.phone.trim().matches("^1[3-9]\\d{9}$")) throw new BizException("请填写正确的收货手机号");
-        if (Stream.of(a.province, a.city, a.district, a.detail).anyMatch(x -> x == null || x.trim().isBlank())) throw new BizException("请填写完整的收货地址");
+        if (a.receiver == null || a.receiver.trim().isBlank() || a.receiver.trim().length() > 30)
+            throw new BizException("请填写正确的收货人姓名");
+        if (a.phone == null || !a.phone.trim().matches("^1[3-9]\\d{9}$"))
+            throw new BizException("请填写正确的收货手机号");
+        if (Stream.of(a.province, a.city, a.district, a.detail)
+                .anyMatch(x -> x == null || x.trim().isBlank()))
+            throw new BizException("请填写完整的收货地址");
         if (a.detail.trim().length() > 100) throw new BizException("详细地址不能超过 100 个字符");
     }
 
+    /** 清除当前账号其余地址的默认标记。 */
     private void clearDefaultAddress(Long userId, Long exceptId) {
         List<Address> list = addresses.findByUserId(userId);
-        list.stream().filter(x -> x.defaultAddress && !Objects.equals(x.id, exceptId)).forEach(x -> x.defaultAddress = false);
+        list.stream()
+                .filter(x -> x.defaultAddress && !Objects.equals(x.id, exceptId))
+                .forEach(x -> x.defaultAddress = false);
         addresses.saveAll(list);
     }
 
+    /** 在事务中锁定商品、结算价格、扣库存并写入订单。 */
     @PostMapping("/orders")
     @org.springframework.transaction.annotation.Transactional
     public ApiResponse<?> createOrder(
-            @RequestHeader("X-Token") String t,
-            @RequestBody Map<String, Object> body) {
+            @RequestHeader("X-Token") String t, @RequestBody Map<String, Object> body) {
         User u = me(t);
-        String receiverInfo = String.valueOf(body.getOrDefault("receiverInfo", "")).trim();
+        String receiverInfo = Objects.toString(body.get("receiverInfo"), "").trim();
         users.findForUpdate(u.id).orElseThrow(() -> new BizException("用户不存在"));
+        TradeIn credit = selectedTradeInCredit(u.id, body.get("tradeInCreditId"));
         Object addrValue = body.get("addressId");
         if (addrValue instanceof Number number) {
-            Address addr = addresses.findById(number.longValue()).orElseThrow(() -> new BizException("地址不存在"));
+            Address addr =
+                    addresses
+                            .findById(number.longValue())
+                            .orElseThrow(() -> new BizException("地址不存在"));
             if (!Objects.equals(addr.userId, u.id)) throw new BizException("无权使用该地址");
-            receiverInfo = addr.receiver + "," + addr.phone + "," + addr.province + addr.city + addr.district + addr.detail;
+            receiverInfo =
+                    addr.receiver
+                            + ","
+                            + addr.phone
+                            + ","
+                            + addr.province
+                            + addr.city
+                            + addr.district
+                            + addr.detail;
         }
         if (receiverInfo.isBlank()) throw new BizException("请填写收货信息");
 
-        List<CartItem> items = carts.findByUserId(u.id).stream()
-                .sorted(Comparator.comparing(x -> x.productId)).toList();
+        List<CartItem> items =
+                carts.findByUserId(u.id).stream()
+                        .sorted(Comparator.comparing(x -> x.productId))
+                        .toList();
         if (items.isEmpty()) throw new BizException("购物车为空");
 
         OrderEntity order = new OrderEntity();
         order.userId = u.id;
         order.status = "PENDING";
-        order.orderNo = "ORD" + System.currentTimeMillis() + UUID.randomUUID().toString().substring(0, 8);
+        order.orderNo =
+                "ORD" + System.currentTimeMillis() + UUID.randomUUID().toString().substring(0, 8);
         order.createdAt = LocalDateTime.now();
         order.receiverInfo = receiverInfo;
 
         BigDecimal total = BigDecimal.ZERO;
         List<OrderItem> newItems = new ArrayList<>();
         for (CartItem cartItem : items) {
-            Product product = products.findForUpdate(cartItem.productId).orElseThrow(() -> new BizException("商品不存在"));
+            Product product =
+                    products.findForUpdate(cartItem.productId)
+                            .orElseThrow(() -> new BizException("商品不存在"));
             if (!product.enabled) throw new BizException(product.name + " 已下架");
-            if (cartItem.quantity < 1 || cartItem.quantity > product.stock) throw new BizException(product.name + " 库存不足");
+            if (cartItem.quantity < 1 || cartItem.quantity > product.stock)
+                throw new BizException(product.name + " 库存不足");
             OrderItem item = new OrderItem();
             item.productId = product.id;
             item.productName = product.name;
@@ -734,13 +895,21 @@ public class ApiController {
             item.quantity = cartItem.quantity;
             item.selectedSku = Optional.ofNullable(cartItem.selectedSku).orElse("标准版");
             newItems.add(item);
-            total = total.add(product.price.multiply(BigDecimal.valueOf(cartItem.quantity)));
+            total = total.add(orderItemAmount(item));
             product.stock -= cartItem.quantity;
             product.sales += cartItem.quantity;
             products.save(product);
         }
-        order.totalAmount = total;
+        if (credit != null) {
+            order.discountAmount = applyTradeInDiscount(credit, newItems, total);
+            order.tradeInCreditId = credit.id;
+        }
+        order.totalAmount = total.subtract(order.discountAmount);
         order = orders.save(order);
+        if (credit != null) {
+            credit.remainingAmount = credit.remainingAmount.subtract(order.discountAmount);
+            tradeIns.save(credit);
+        }
         for (OrderItem item : newItems) {
             item.orderId = order.id;
             orderItems.save(item);
@@ -749,24 +918,66 @@ public class ApiController {
         return ApiResponse.ok(order);
     }
 
+    /** 在持有用户锁时读取并校验本人用于结算的旧机折价余额。 */
+    private TradeIn selectedTradeInCredit(Long userId, Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (!(value instanceof Number number)
+                || number.longValue() < 1
+                || number.doubleValue() != number.longValue()) {
+            throw new BizException("旧机折价记录编号不正确");
+        }
+        return tradeIns.findById(number.longValue())
+                .filter(credit -> Objects.equals(credit.userId, userId))
+                .filter(credit -> isAvailableTradeInCredit(credit, LocalDateTime.now()))
+                .orElseThrow(() -> new BizException("旧机折价余额不可用、已用完或已过期"));
+    }
+
+    /** 旧机折价可以抵满商品金额；按明细金额分摊，保证退款上限与实付一致。 */
+    private BigDecimal applyTradeInDiscount(
+            TradeIn credit, List<OrderItem> items, BigDecimal subtotal) {
+        BigDecimal discount = credit.remainingAmount.min(subtotal).setScale(2, RoundingMode.DOWN);
+        if (discount.signum() <= 0) {
+            throw new BizException("订单没有可抵扣的商品金额");
+        }
+        BigDecimal cumulative = BigDecimal.ZERO;
+        BigDecimal allocated = BigDecimal.ZERO;
+        for (OrderItem item : items) {
+            cumulative = cumulative.add(orderItemAmount(item));
+            BigDecimal next = discount.multiply(cumulative).divide(subtotal, 2, RoundingMode.DOWN);
+            item.discountAmount = next.subtract(allocated);
+            allocated = next;
+        }
+        return discount;
+    }
+
+    /** 计算订单明细抵扣前的商品金额。 */
+    private BigDecimal orderItemAmount(OrderItem item) {
+        return item.price.multiply(BigDecimal.valueOf(item.quantity));
+    }
+
+    /** 读取当前用户的订单列表。 */
     @GetMapping("/orders")
     public ApiResponse<?> orders(@RequestHeader("X-Token") String t) {
         User u = me(t);
-        List<Map<String, Object>> result = orders.findByUserId(u.id).stream()
-                .sorted(Comparator.comparing((OrderEntity x) -> x.createdAt).reversed())
-                .map(order -> {
-                    Map<String, Object> row = new HashMap<>();
-                    row.put("order", order);
-                    row.put("items", orderItems.findByOrderId(order.id));
-                    return row;
-                }).toList();
+        List<Map<String, Object>> result =
+                orders.findByUserId(u.id).stream()
+                        .sorted(Comparator.comparing((OrderEntity x) -> x.createdAt).reversed())
+                        .map(
+                                order -> {
+                                    Map<String, Object> row = new HashMap<>();
+                                    row.put("order", order);
+                                    row.put("items", orderItems.findByOrderId(order.id));
+                                    return row;
+                                })
+                        .toList();
         return ApiResponse.ok(result);
     }
 
+    /** 校验归属后查看订单与明细。 */
     @GetMapping("/orders/{id}")
-    public ApiResponse<?> orderDetail(
-            @RequestHeader("X-Token") String t,
-            @PathVariable Long id) {
+    public ApiResponse<?> orderDetail(@RequestHeader("X-Token") String t, @PathVariable Long id) {
         User u = me(t);
         OrderEntity order = orders.findById(id).orElseThrow(() -> new BizException("订单不存在"));
         if (!Objects.equals(order.userId, u.id)) {
@@ -779,11 +990,10 @@ public class ApiController {
         return ApiResponse.ok(result);
     }
 
+    /** 执行模拟付款状态变更。 */
     @PostMapping("/orders/{id}/pay")
     @org.springframework.transaction.annotation.Transactional
-    public ApiResponse<?> payOrder(
-            @RequestHeader("X-Token") String t,
-            @PathVariable Long id) {
+    public ApiResponse<?> payOrder(@RequestHeader("X-Token") String t, @PathVariable Long id) {
         User u = me(t);
         OrderEntity order = orders.findForUpdate(id).orElseThrow(() -> new BizException("订单不存在"));
         if (!Objects.equals(order.userId, u.id)) {
@@ -798,12 +1008,12 @@ public class ApiController {
         return ApiResponse.ok(order);
     }
 
+    /** 取消未付款订单，恢复库存并返还该单已占用的旧机折价。 */
     @PostMapping("/orders/{id}/cancel")
     @org.springframework.transaction.annotation.Transactional
-    public ApiResponse<?> cancelOrder(
-            @RequestHeader("X-Token") String t,
-            @PathVariable Long id) {
+    public ApiResponse<?> cancelOrder(@RequestHeader("X-Token") String t, @PathVariable Long id) {
         User u = me(t);
+        users.findForUpdate(u.id).orElseThrow(() -> new BizException("用户不存在"));
         OrderEntity order = orders.findForUpdate(id).orElseThrow(() -> new BizException("订单不存在"));
         if (!Objects.equals(order.userId, u.id)) {
             throw new BizException("无权操作");
@@ -811,23 +1021,37 @@ public class ApiController {
         if (!"PENDING".equals(order.status)) {
             throw new BizException("订单状态不正确");
         }
-        for (OrderItem item : orderItems.findByOrderId(order.id).stream().sorted(Comparator.comparing(x -> x.productId)).toList()) {
-            products.findForUpdate(item.productId).ifPresent(product -> {
-                product.stock += item.quantity;
-                product.sales = Math.max(0, product.sales - item.quantity);
-                products.save(product);
-            });
+        for (OrderItem item :
+                orderItems.findByOrderId(order.id).stream()
+                        .sorted(Comparator.comparing(x -> x.productId))
+                        .toList()) {
+            products.findForUpdate(item.productId)
+                    .ifPresent(
+                            product -> {
+                                product.stock += item.quantity;
+                                product.sales = Math.max(0, product.sales - item.quantity);
+                                products.save(product);
+                            });
         }
         order.status = "CANCELLED";
+        if (order.tradeInCreditId != null) {
+            tradeIns.findById(order.tradeInCreditId)
+                    .filter(credit -> Objects.equals(credit.userId, u.id))
+                    .ifPresent(
+                            credit -> {
+                                credit.remainingAmount =
+                                        credit.remainingAmount.add(order.discountAmount);
+                                tradeIns.save(credit);
+                            });
+        }
         orders.save(order);
         return ApiResponse.ok(order);
     }
 
+    /** 确认本人订单收货。 */
     @PostMapping("/orders/{id}/receive")
     @org.springframework.transaction.annotation.Transactional
-    public ApiResponse<?> receiveOrder(
-            @RequestHeader("X-Token") String t,
-            @PathVariable Long id) {
+    public ApiResponse<?> receiveOrder(@RequestHeader("X-Token") String t, @PathVariable Long id) {
         User u = me(t);
         OrderEntity order = orders.findForUpdate(id).orElseThrow(() -> new BizException("订单不存在"));
         if (!Objects.equals(order.userId, u.id)) {
@@ -841,10 +1065,10 @@ public class ApiController {
         return ApiResponse.ok(order);
     }
 
+    /** 校验购买记录后提交商品评价。 */
     @PostMapping("/reviews")
     public ApiResponse<?> addReview(
-            @RequestHeader("X-Token") String t,
-            @RequestBody Map<String, Object> body) {
+            @RequestHeader("X-Token") String t, @RequestBody Map<String, Object> body) {
         User u = me(t);
         Long orderId = ((Number) body.get("orderId")).longValue();
         Long productId = ((Number) body.get("productId")).longValue();
@@ -873,14 +1097,16 @@ public class ApiController {
         }
 
         List<OrderItem> oItems = orderItems.findByOrderId(orderId);
-        OrderItem oItem = oItems.stream()
-                .filter(oi -> Objects.equals(oi.productId, productId))
-                .findFirst()
-                .orElseThrow(() -> new BizException("该订单不包含此商品"));
+        OrderItem oItem =
+                oItems.stream()
+                        .filter(oi -> Objects.equals(oi.productId, productId))
+                        .findFirst()
+                        .orElseThrow(() -> new BizException("该订单不包含此商品"));
 
-        List<Review> existing = reviews.findByUserId(u.id).stream()
-                .filter(r -> Objects.equals(r.orderItemId, oItem.id))
-                .toList();
+        List<Review> existing =
+                reviews.findByUserId(u.id).stream()
+                        .filter(r -> Objects.equals(r.orderItemId, oItem.id))
+                        .toList();
         if (!existing.isEmpty()) {
             throw new BizException("已评价过该商品");
         }
@@ -905,101 +1131,222 @@ public class ApiController {
         return ApiResponse.ok(r);
     }
 
+    /** 读取当前用户提交的评价。 */
     @GetMapping("/reviews/mine")
     public ApiResponse<?> myReviews(@RequestHeader("X-Token") String t) {
         User u = me(t);
-        List<Review> list = reviews.findByUserId(u.id).stream()
-                .sorted(Comparator.comparing((Review x) -> x.createdAt).reversed())
-                .toList();
+        List<Review> list =
+                reviews.findByUserId(u.id).stream()
+                        .sorted(Comparator.comparing((Review x) -> x.createdAt).reversed())
+                        .toList();
         return ApiResponse.ok(list);
     }
 
+    /** 读取本人售后单及进度。 */
     @GetMapping("/after-sales")
     public ApiResponse<?> myAfterSales(@RequestHeader("X-Token") String t) {
         User u = me(t);
-        return ApiResponse.ok(afterSales.findByUserId(u.id).stream()
-                .sorted(Comparator.comparing((AfterSaleRequest x) -> x.createdAt).reversed()).toList());
+        return ApiResponse.ok(
+                afterSales.findByUserId(u.id).stream()
+                        .sorted(
+                                Comparator.comparing((AfterSaleRequest x) -> x.createdAt)
+                                        .reversed())
+                        .toList());
     }
 
+    /** 校验订单明细并提交售后申请。 */
     @PostMapping("/after-sales")
     @org.springframework.transaction.annotation.Transactional
     public ApiResponse<?> createAfterSale(
-            @RequestHeader("X-Token") String t,
-            @RequestBody Map<String, Object> body) {
+            @RequestHeader("X-Token") String t, @RequestBody Map<String, Object> body) {
         User u = me(t);
         Long orderId = numberAsLong(body.get("orderId"), "请选择订单");
         Long orderItemId = numberAsLong(body.get("orderItemId"), "请选择售后商品");
-        OrderEntity order = orders.findForUpdate(orderId).orElseThrow(() -> new BizException("订单不存在"));
+        OrderEntity order =
+                orders.findForUpdate(orderId).orElseThrow(() -> new BizException("订单不存在"));
         if (!Objects.equals(order.userId, u.id)) throw new BizException("无权申请该订单售后");
-        if (!Set.of("PAID", "SHIPPED", "COMPLETED").contains(order.status)) throw new BizException("当前订单状态不支持售后");
-        OrderItem item = orderItems.findByOrderId(orderId).stream()
-                .filter(x -> Objects.equals(x.id, orderItemId)).findFirst()
-                .orElseThrow(() -> new BizException("订单中不存在该商品"));
-        boolean active = afterSales.findByOrderItemId(orderItemId).stream()
-                .anyMatch(x -> !Set.of("REJECTED", "CANCELLED", "COMPLETED").contains(x.status));
+        if (!Set.of("PAID", "SHIPPED", "COMPLETED").contains(order.status))
+            throw new BizException("当前订单状态不支持售后");
+        OrderItem item =
+                orderItems.findByOrderId(orderId).stream()
+                        .filter(x -> Objects.equals(x.id, orderItemId))
+                        .findFirst()
+                        .orElseThrow(() -> new BizException("订单中不存在该商品"));
+        boolean active =
+                afterSales.findByOrderItemId(orderItemId).stream()
+                        .anyMatch(
+                                x ->
+                                        !Set.of("REJECTED", "CANCELLED", "COMPLETED")
+                                                .contains(x.status));
         if (active) throw new BizException("该商品已有处理中的售后单");
         String type = Objects.toString(body.get("type"), "").trim();
-        if (!Set.of("REFUND", "RETURN", "REPAIR").contains(type)) throw new BizException("请选择退款、退货或维修");
-        BigDecimal completedRefunds = afterSales.findByOrderItemId(orderItemId).stream()
-                .filter(x -> "COMPLETED".equals(x.status) && !"REPAIR".equals(x.type))
-                .map(x -> Objects.requireNonNullElse(x.approvedAmount, BigDecimal.ZERO))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal remainingAmount = item.price.multiply(BigDecimal.valueOf(item.quantity)).subtract(completedRefunds);
-        if (remainingAmount.signum() <= 0) throw new BizException("该商品已完成全额退款售后，不能重复申请");
+        if (!Set.of("REFUND", "RETURN", "REPAIR").contains(type))
+            throw new BizException("请选择退款、退货或维修");
+        BigDecimal completedRefunds =
+                afterSales.findByOrderItemId(orderItemId).stream()
+                        .filter(x -> "COMPLETED".equals(x.status) && !"REPAIR".equals(x.type))
+                        .map(x -> Objects.requireNonNullElse(x.approvedAmount, BigDecimal.ZERO))
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal remainingAmount =
+                orderItemAmount(item)
+                        .subtract(Objects.requireNonNullElse(item.discountAmount, BigDecimal.ZERO))
+                        .subtract(completedRefunds);
+        if (remainingAmount.signum() <= 0 && !"REPAIR".equals(type)) {
+            throw new BizException(
+                    completedRefunds.signum() > 0 ? "该商品已完成全额退款售后，不能重复申请" : "该商品没有可退的实付金额");
+        }
         String reason = Objects.toString(body.get("reason"), "").trim();
         String description = Objects.toString(body.get("description"), "").trim();
         if (reason.isBlank()) throw new BizException("请选择售后原因");
-        if (description.length() < 5 || description.length() > 1000) throw new BizException("问题说明请填写 5～1000 字");
+        if (description.length() < 5 || description.length() > 1000)
+            throw new BizException("问题说明请填写 5～1000 字");
         AfterSaleRequest request = new AfterSaleRequest();
-        request.serviceNo = "AS" + LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
-                + String.format("%04d", new Random().nextInt(10000));
-        request.userId = u.id; request.orderId = orderId; request.orderItemId = item.id;
-        request.productId = item.productId; request.productName = item.productName; request.type = type;
-        request.reason = reason; request.description = description; request.status = "SUBMITTED";
+        request.serviceNo =
+                "AS"
+                        + LocalDateTime.now()
+                                .format(
+                                        java.time.format.DateTimeFormatter.ofPattern(
+                                                "yyyyMMddHHmmss"))
+                        + String.format("%04d", new Random().nextInt(10000));
+        request.userId = u.id;
+        request.orderId = orderId;
+        request.orderItemId = item.id;
+        request.productId = item.productId;
+        request.productName = item.productName;
+        request.type = type;
+        request.reason = reason;
+        request.description = description;
+        request.status = "SUBMITTED";
         request.requestedAmount = "REPAIR".equals(type) ? BigDecimal.ZERO : remainingAmount;
-        request.createdAt = LocalDateTime.now(); request.updatedAt = request.createdAt;
+        request.createdAt = LocalDateTime.now();
+        request.updatedAt = request.createdAt;
         return ApiResponse.ok(afterSales.save(request));
     }
 
+    /** 按当前状态取消本人售后。 */
     @PostMapping("/after-sales/{id}/cancel")
     @org.springframework.transaction.annotation.Transactional
-    public ApiResponse<?> cancelAfterSale(@RequestHeader("X-Token") String t, @PathVariable Long id) {
+    public ApiResponse<?> cancelAfterSale(
+            @RequestHeader("X-Token") String t, @PathVariable Long id) {
         User u = me(t);
-        AfterSaleRequest request = afterSales.findForUpdate(id).orElseThrow(() -> new BizException("售后单不存在"));
+        AfterSaleRequest request =
+                afterSales.findForUpdate(id).orElseThrow(() -> new BizException("售后单不存在"));
         if (!Objects.equals(request.userId, u.id)) throw new BizException("无权操作");
-        if (!Set.of("SUBMITTED", "REVIEWING").contains(request.status)) throw new BizException("当前进度不能取消");
-        request.status = "CANCELLED"; request.updatedAt = LocalDateTime.now();
+        if (!Set.of("SUBMITTED", "REVIEWING").contains(request.status))
+            throw new BizException("当前进度不能取消");
+        request.status = "CANCELLED";
+        request.updatedAt = LocalDateTime.now();
         return ApiResponse.ok(afterSales.save(request));
     }
 
+    /** 保存用户的退回物流信息。 */
     @PostMapping("/after-sales/{id}/logistics")
     @org.springframework.transaction.annotation.Transactional
     public ApiResponse<?> submitReturnLogistics(
-            @RequestHeader("X-Token") String t, @PathVariable Long id,
+            @RequestHeader("X-Token") String t,
+            @PathVariable Long id,
             @RequestBody Map<String, Object> body) {
         User u = me(t);
-        AfterSaleRequest request = afterSales.findForUpdate(id).orElseThrow(() -> new BizException("售后单不存在"));
+        AfterSaleRequest request =
+                afterSales.findForUpdate(id).orElseThrow(() -> new BizException("售后单不存在"));
         if (!Objects.equals(request.userId, u.id)) throw new BizException("无权操作");
         if (!"WAITING_RETURN".equals(request.status)) throw new BizException("当前不需要填写退回物流");
         String company = Objects.toString(body.get("company"), "").trim();
         String logisticsNo = Objects.toString(body.get("logisticsNo"), "").trim();
-        if (company.isBlank() || company.length() > 50 || logisticsNo.length() < 5 || logisticsNo.length() > 80) {
+        if (company.isBlank()
+                || company.length() > 50
+                || logisticsNo.length() < 5
+                || logisticsNo.length() > 80) {
             throw new BizException("物流公司请填写 1～50 字，物流单号请填写 5～80 字");
         }
-        request.returnLogisticsCompany = company; request.returnLogisticsNo = logisticsNo;
-        request.status = "RETURN_SHIPPED"; request.updatedAt = LocalDateTime.now();
+        request.returnLogisticsCompany = company;
+        request.returnLogisticsNo = logisticsNo;
+        request.status = "RETURN_SHIPPED";
+        request.updatedAt = LocalDateTime.now();
         return ApiResponse.ok(afterSales.save(request));
     }
 
+    /** 根据商品原价、年限与成色计算模拟估价区间。 */
     @PostMapping("/trade-in/estimate")
     public ApiResponse<?> tradeInEstimate(@RequestBody Map<String, Object> body) {
+        return ApiResponse.ok(calculateTradeInEstimate(body));
+    }
+
+    /** 按服务端重算的模拟估价确认折价，同一账号每天最多确认一台设备。 */
+    @PostMapping("/trade-in/credits")
+    @org.springframework.transaction.annotation.Transactional
+    public ApiResponse<?> confirmTradeInCredit(
+            @RequestHeader("X-Token") String token, @RequestBody Map<String, Object> body) {
+        User user = me(token);
+        Map<String, Object> estimate = calculateTradeInEstimate(body);
+        users.findForUpdate(user.id).orElseThrow(() -> new BizException("用户不存在"));
+        LocalDateTime now = LocalDateTime.now();
+        List<TradeIn> existing = tradeIns.findByUserId(user.id);
+        if (existing.stream().anyMatch(credit -> isAvailableTradeInCredit(credit, now))) {
+            throw new BizException("已有可用的旧机折价余额，可前往购物车抵扣");
+        }
+        if (orders.existsByUserIdAndStatusAndTradeInCreditIdIsNotNull(user.id, "PENDING")) {
+            throw new BizException("已有待确认订单使用旧机折价，请先处理该订单");
+        }
+        if (existing.stream()
+                .anyMatch(
+                        credit ->
+                                credit.remainingAmount != null
+                                        && credit.createdAt != null
+                                        && credit.createdAt
+                                                .toLocalDate()
+                                                .equals(now.toLocalDate()))) {
+            throw new BizException("今天已确认过一台旧机折价");
+        }
+
+        TradeIn credit = new TradeIn();
+        credit.userId = user.id;
+        credit.brand = (String) estimate.get("brand");
+        credit.model = (String) estimate.get("model");
+        credit.years = ((Number) body.get("age")).intValue();
+        credit.conditionLevel = Objects.toString(body.get("condition"), "good");
+        credit.functional = !"major".equals(body.get("functionStatus"));
+        credit.estimatedPrice = (BigDecimal) estimate.get("estimate");
+        credit.remainingAmount = credit.estimatedPrice;
+        if (credit.remainingAmount.signum() <= 0) {
+            throw new BizException("本次模拟估价不足以抵扣");
+        }
+        credit.createdAt = now;
+        credit.expiresAt = now.plusDays(7);
+        return ApiResponse.ok(tradeIns.save(credit));
+    }
+
+    /** 查询本人的未过期折价余额，供购物车结算使用。 */
+    @GetMapping("/trade-in/credits")
+    public ApiResponse<?> tradeInCredits(@RequestHeader("X-Token") String token) {
+        LocalDateTime now = LocalDateTime.now();
+        return ApiResponse.ok(
+                tradeIns.findByUserId(me(token).id).stream()
+                        .filter(credit -> isAvailableTradeInCredit(credit, now))
+                        .toList());
+    }
+
+    /** 判断模拟折价是否有可用余额且未过期。 */
+    private boolean isAvailableTradeInCredit(TradeIn credit, LocalDateTime now) {
+        return credit.remainingAmount != null
+                && credit.remainingAmount.signum() > 0
+                && credit.expiresAt != null
+                && credit.expiresAt.isAfter(now);
+    }
+
+    /** 校验设备和成色参数并计算模拟估价，预览和折价确认共用规则。 */
+    private Map<String, Object> calculateTradeInEstimate(Map<String, Object> body) {
         String brand = Objects.toString(body.get("brand"), "").trim();
         String model = Objects.toString(body.get("model"), "").trim();
         String condition = Objects.toString(body.get("condition"), "good");
         String functionStatus = Objects.toString(body.get("functionStatus"), "normal");
         String batteryHealth = Objects.toString(body.get("batteryHealth"), "70-89");
         String accessories = Objects.toString(body.get("accessories"), "complete");
-        int age = body.get("age") instanceof Number number ? number.intValue() : -1;
+        Object ageValue = body.get("age");
+        int age =
+                ageValue instanceof Number number && number.doubleValue() == number.intValue()
+                        ? number.intValue()
+                        : -1;
         BigDecimal originalPrice;
         try {
             originalPrice = new BigDecimal(Objects.toString(body.get("originalPrice"), "0"));
@@ -1007,38 +1354,69 @@ public class ApiController {
             throw new BizException("原购买价格格式不正确");
         }
         if (brand.isBlank() || model.isBlank()) throw new BizException("请填写旧设备品牌和型号");
-        if (age < 0 || age > 10) throw new BizException("使用年限应在 0～10 年之间");
-        if (originalPrice.compareTo(new BigDecimal("500")) < 0
+        if (brand.length() > 100 || model.length() > 120) throw new BizException("设备品牌或型号过长");
+        if (age < 0 || age > 20) throw new BizException("使用年限应在 0～20 年之间");
+        if (originalPrice.compareTo(BigDecimal.ONE) < 0
                 || originalPrice.compareTo(new BigDecimal("1000000")) > 0) {
-            throw new BizException("原购买价格应在 500～1000000 元之间");
+            throw new BizException("原购买价格应在 1～1000000 元之间");
         }
 
-        Map<String, BigDecimal> conditionRates = Map.of(
-                "excellent", new BigDecimal("0.92"), "good", new BigDecimal("0.80"),
-                "fair", new BigDecimal("0.62"), "poor", new BigDecimal("0.38"));
-        Map<String, BigDecimal> functionRates = Map.of(
-                "normal", BigDecimal.ONE, "minor", new BigDecimal("0.78"),
-                "major", new BigDecimal("0.42"));
-        Map<String, BigDecimal> batteryRates = Map.of(
-                "90+", BigDecimal.ONE, "70-89", new BigDecimal("0.88"),
-                "50-69", new BigDecimal("0.68"), "below50", new BigDecimal("0.45"));
-        Map<String, BigDecimal> accessoryRates = Map.of(
-                "complete", BigDecimal.ONE, "partial", new BigDecimal("0.92"),
-                "none", new BigDecimal("0.82"));
-        if (!conditionRates.containsKey(condition) || !functionRates.containsKey(functionStatus)
-                || !batteryRates.containsKey(batteryHealth) || !accessoryRates.containsKey(accessories)) {
+        Map<String, BigDecimal> conditionRates =
+                Map.of(
+                        "excellent",
+                        new BigDecimal("0.92"),
+                        "good",
+                        new BigDecimal("0.80"),
+                        "fair",
+                        new BigDecimal("0.62"),
+                        "poor",
+                        new BigDecimal("0.38"));
+        Map<String, BigDecimal> functionRates =
+                Map.of(
+                        "normal",
+                        BigDecimal.ONE,
+                        "minor",
+                        new BigDecimal("0.78"),
+                        "major",
+                        new BigDecimal("0.42"));
+        Map<String, BigDecimal> batteryRates =
+                Map.of(
+                        "90+",
+                        BigDecimal.ONE,
+                        "70-89",
+                        new BigDecimal("0.88"),
+                        "50-69",
+                        new BigDecimal("0.68"),
+                        "below50",
+                        new BigDecimal("0.45"));
+        Map<String, BigDecimal> accessoryRates =
+                Map.of(
+                        "complete",
+                        BigDecimal.ONE,
+                        "partial",
+                        new BigDecimal("0.92"),
+                        "none",
+                        new BigDecimal("0.82"));
+        if (!conditionRates.containsKey(condition)
+                || !functionRates.containsKey(functionStatus)
+                || !batteryRates.containsKey(batteryHealth)
+                || !accessoryRates.containsKey(accessories)) {
             throw new BizException("设备状态选项不正确");
         }
 
         BigDecimal ageRate = BigDecimal.valueOf(Math.pow(0.78d, age));
-        BigDecimal estimate = originalPrice.multiply(new BigDecimal("0.55"))
-                .multiply(ageRate)
-                .multiply(conditionRates.get(condition))
-                .multiply(functionRates.get(functionStatus))
-                .multiply(batteryRates.get(batteryHealth))
-                .multiply(accessoryRates.get(accessories));
-        BigDecimal low = estimate.multiply(new BigDecimal("0.90")).setScale(0, RoundingMode.HALF_UP);
-        BigDecimal high = estimate.multiply(new BigDecimal("1.10")).setScale(0, RoundingMode.HALF_UP);
+        BigDecimal estimate =
+                originalPrice
+                        .multiply(new BigDecimal("0.55"))
+                        .multiply(ageRate)
+                        .multiply(conditionRates.get(condition))
+                        .multiply(functionRates.get(functionStatus))
+                        .multiply(batteryRates.get(batteryHealth))
+                        .multiply(accessoryRates.get(accessories));
+        BigDecimal low =
+                estimate.multiply(new BigDecimal("0.90")).setScale(0, RoundingMode.HALF_UP);
+        BigDecimal high =
+                estimate.multiply(new BigDecimal("1.10")).setScale(0, RoundingMode.HALF_UP);
         BigDecimal midpoint = estimate.setScale(0, RoundingMode.HALF_UP);
 
         Map<String, Object> factors = new LinkedHashMap<>();
@@ -1052,15 +1430,15 @@ public class ApiController {
         result.put("estimate", midpoint);
         result.put("estimateLow", low);
         result.put("estimateHigh", high);
-        result.put("tradeInBonus", originalPrice.compareTo(new BigDecimal("10000")) >= 0 ? 500 : 200);
         result.put("brand", brand);
         result.put("model", model);
         result.put("originalPrice", originalPrice);
         result.put("factors", factors);
-        result.put("disclaimer", "结果为毕业设计模拟估价，最终价格应以实物检测为准");
-        return ApiResponse.ok(result);
+        result.put("disclaimer", "按填写信息估算，仅用于本站模拟抵扣；不代表二手平台实时报价");
+        return result;
     }
 
+    /** 计算管理后台的主要经营统计。 */
     @GetMapping("/admin/dashboard")
     public ApiResponse<?> dashboard(@RequestHeader("X-Token") String t) {
         admin(t);
@@ -1069,39 +1447,75 @@ public class ApiController {
         long totalOrders = orders.count();
         long totalReviews = reviews.count();
 
-        BigDecimal totalSales = orders.findAll().stream()
-                .filter(x -> "COMPLETED".equals(x.status))
-                .map(x -> x.totalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalSales =
+                orders.findAll().stream()
+                        .filter(x -> "COMPLETED".equals(x.status))
+                        .map(x -> x.totalAmount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        List<OrderEntity> recentOrders = orders.findAll().stream()
-                .sorted(Comparator.comparing((OrderEntity x) -> x.createdAt).reversed())
-                .limit(10)
-                .toList();
+        List<OrderEntity> recentOrders =
+                orders.findAll().stream()
+                        .sorted(Comparator.comparing((OrderEntity x) -> x.createdAt).reversed())
+                        .limit(10)
+                        .toList();
 
         List<OrderEntity> allOrders = orders.findAll();
-        Map<String, Long> statusDistribution = allOrders.stream().collect(Collectors.groupingBy(
-                x -> x.status, LinkedHashMap::new, Collectors.counting()));
+        Map<String, Long> statusDistribution =
+                allOrders.stream()
+                        .collect(
+                                Collectors.groupingBy(
+                                        x -> x.status, LinkedHashMap::new, Collectors.counting()));
         LocalDate today = LocalDate.now();
         List<Map<String, Object>> dailySales = new ArrayList<>();
         for (int offset = 6; offset >= 0; offset--) {
             LocalDate date = today.minusDays(offset);
-            BigDecimal amount = allOrders.stream()
-                    .filter(x -> x.createdAt != null && x.createdAt.toLocalDate().equals(date))
-                    .filter(x -> Set.of("PAID", "SHIPPED", "COMPLETED").contains(x.status))
-                    .map(x -> x.totalAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-            long count = allOrders.stream().filter(x -> x.createdAt != null && x.createdAt.toLocalDate().equals(date)).count();
+            BigDecimal amount =
+                    allOrders.stream()
+                            .filter(
+                                    x ->
+                                            x.createdAt != null
+                                                    && x.createdAt.toLocalDate().equals(date))
+                            .filter(x -> Set.of("PAID", "SHIPPED", "COMPLETED").contains(x.status))
+                            .map(x -> x.totalAmount)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+            long count =
+                    allOrders.stream()
+                            .filter(
+                                    x ->
+                                            x.createdAt != null
+                                                    && x.createdAt.toLocalDate().equals(date))
+                            .count();
             Map<String, Object> day = new LinkedHashMap<>();
-            day.put("date", date.toString()); day.put("amount", amount); day.put("orders", count);
+            day.put("date", date.toString());
+            day.put("amount", amount);
+            day.put("orders", count);
             dailySales.add(day);
         }
         Map<String, Integer> categorySales = new LinkedHashMap<>();
-        orderItems.findAll().forEach(item -> products.findById(item.productId).ifPresent(product -> {
-            String category = product.categoryId == null ? "其他" : cats.findById(product.categoryId).map(x -> x.name).orElse("其他");
-            categorySales.merge(category, item.quantity, Integer::sum);
-        }));
-        List<Product> lowStockProducts = products.findAll().stream().filter(x -> x.enabled && x.stock <= 5)
-                .sorted(Comparator.comparingInt(x -> x.stock)).limit(10).peek(this::enrich).toList();
+        orderItems
+                .findAll()
+                .forEach(
+                        item ->
+                                products.findById(item.productId)
+                                        .ifPresent(
+                                                product -> {
+                                                    String category =
+                                                            product.categoryId == null
+                                                                    ? "其他"
+                                                                    : cats.findById(
+                                                                                    product.categoryId)
+                                                                            .map(x -> x.name)
+                                                                            .orElse("其他");
+                                                    categorySales.merge(
+                                                            category, item.quantity, Integer::sum);
+                                                }));
+        List<Product> lowStockProducts =
+                products.findAll().stream()
+                        .filter(x -> x.enabled && x.stock <= 5)
+                        .sorted(Comparator.comparingInt(x -> x.stock))
+                        .limit(10)
+                        .peek(this::enrich)
+                        .toList();
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("totalUsers", totalUsers);
@@ -1114,59 +1528,118 @@ public class ApiController {
         result.put("dailySales", dailySales);
         result.put("categorySales", categorySales);
         result.put("lowStockProducts", lowStockProducts);
-        result.put("afterSalePending", afterSales.findAll().stream()
-                .filter(x -> !Set.of("REJECTED", "CANCELLED", "COMPLETED").contains(x.status)).count());
-        result.put("paidConversionRate", totalOrders == 0 ? 0 : Math.round(allOrders.stream()
-                .filter(x -> Set.of("PAID", "SHIPPED", "COMPLETED").contains(x.status)).count() * 1000d / totalOrders) / 10d);
+        result.put(
+                "afterSalePending",
+                afterSales.findAll().stream()
+                        .filter(
+                                x ->
+                                        !Set.of("REJECTED", "CANCELLED", "COMPLETED")
+                                                .contains(x.status))
+                        .count());
+        result.put(
+                "paidConversionRate",
+                totalOrders == 0
+                        ? 0
+                        : Math.round(
+                                        allOrders.stream()
+                                                        .filter(
+                                                                x ->
+                                                                        Set.of(
+                                                                                        "PAID",
+                                                                                        "SHIPPED",
+                                                                                        "COMPLETED")
+                                                                                .contains(x.status))
+                                                        .count()
+                                                * 1000d
+                                                / totalOrders)
+                                / 10d);
         return ApiResponse.ok(result);
     }
 
+    /** 读取后台售后列表。 */
     @GetMapping("/admin/after-sales")
     public ApiResponse<?> adminAfterSales(@RequestHeader("X-Token") String t) {
         admin(t);
-        return ApiResponse.ok(afterSales.findAll().stream()
-                .sorted(Comparator.comparing((AfterSaleRequest x) -> x.createdAt).reversed())
-                .peek(x -> x.allowedStatuses = AfterSalePolicy.allowedStatuses(x)).toList());
+        return ApiResponse.ok(
+                afterSales.findAll().stream()
+                        .sorted(
+                                Comparator.comparing((AfterSaleRequest x) -> x.createdAt)
+                                        .reversed())
+                        .peek(x -> x.allowedStatuses = AfterSalePolicy.allowedStatuses(x))
+                        .toList());
     }
 
+    /** 校验状态迁移并更新售后处理信息。 */
     @PutMapping("/admin/after-sales/{id}")
     @org.springframework.transaction.annotation.Transactional
     public ApiResponse<?> updateAfterSale(
-            @RequestHeader("X-Token") String t, @PathVariable Long id,
+            @RequestHeader("X-Token") String t,
+            @PathVariable Long id,
             @RequestBody Map<String, Object> body) {
         admin(t);
-        AfterSaleRequest request = afterSales.findForUpdate(id).orElseThrow(() -> new BizException("售后单不存在"));
+        AfterSaleRequest request =
+                afterSales.findForUpdate(id).orElseThrow(() -> new BizException("售后单不存在"));
         String status = Objects.toString(body.get("status"), "").trim();
         String reply = Objects.toString(body.get("adminReply"), "").trim();
-        BigDecimal approved = AfterSalePolicy.validate(request, status, body.get("approvedAmount"), reply);
-        request.status = status; request.adminReply = reply;
+        BigDecimal approved =
+                AfterSalePolicy.validate(request, status, body.get("approvedAmount"), reply);
+        request.status = status;
+        request.adminReply = reply;
         request.approvedAmount = approved;
         request.updatedAt = LocalDateTime.now();
         if ("COMPLETED".equals(status)) request.completedAt = request.updatedAt;
         return ApiResponse.ok(afterSales.save(request));
     }
 
+    /** 读取后台账号列表。 */
     @GetMapping("/admin/users")
     public ApiResponse<?> adminUsers(@RequestHeader("X-Token") String t) {
         admin(t);
-        return ApiResponse.ok(users.findAll().stream().map(u->{Map<String,Object> row=new LinkedHashMap<>();row.put("id",u.id);row.put("username",u.username);row.put("nickname",u.nickname);row.put("role",u.role);row.put("enabled",u.enabled);row.put("createTime",u.createTime);row.put("mustChangePassword",u.mustChangePassword);row.put("phoneVerified",u.phoneVerified);row.put("maskedPhone",u.phone==null||u.phone.isBlank()?"未填写":(u.phone.length()==11?u.phone.substring(0,3)+"****"+u.phone.substring(7):"已填写"));return row;}).toList());
+        return ApiResponse.ok(
+                users.findAll().stream()
+                        .map(
+                                u -> {
+                                    Map<String, Object> row = new LinkedHashMap<>();
+                                    row.put("id", u.id);
+                                    row.put("username", u.username);
+                                    row.put("nickname", u.nickname);
+                                    row.put("role", u.role);
+                                    row.put("enabled", u.enabled);
+                                    row.put("createTime", u.createTime);
+                                    row.put("mustChangePassword", u.mustChangePassword);
+                                    row.put("phoneVerified", u.phoneVerified);
+                                    row.put(
+                                            "maskedPhone",
+                                            u.phone == null || u.phone.isBlank()
+                                                    ? "未填写"
+                                                    : (u.phone.length() == 11
+                                                            ? u.phone.substring(0, 3)
+                                                                    + "****"
+                                                                    + u.phone.substring(7)
+                                                            : "已填写"));
+                                    return row;
+                                })
+                        .toList());
     }
 
+    /** 切换普通账号是否启用。 */
     @PutMapping("/admin/users/{id}/toggle")
-    public ApiResponse<?> toggleUser(
-            @RequestHeader("X-Token") String t,
-            @PathVariable Long id) {
+    public ApiResponse<?> toggleUser(@RequestHeader("X-Token") String t, @PathVariable Long id) {
         User currentAdmin = admin(t);
         User target = users.findById(id).orElseThrow(() -> new BizException("用户不存在"));
         if (Objects.equals(currentAdmin.id, target.id) || "ADMIN".equals(target.role)) {
             throw new BizException("不能禁用管理员账号");
         }
         target.enabled = !target.enabled;
-        if (!target.enabled) { target.token = null; target.tokenExpire = null; }
+        if (!target.enabled) {
+            target.token = null;
+            target.tokenExpire = null;
+        }
         users.save(target);
         return ApiResponse.ok(target);
     }
 
+    /** 读取管理端商品目录。 */
     @GetMapping("/admin/products")
     public ApiResponse<?> adminProducts(@RequestHeader("X-Token") String t) {
         admin(t);
@@ -1175,37 +1648,40 @@ public class ApiController {
         return ApiResponse.ok(list);
     }
 
+    /** 录入新商品。 */
     @PostMapping("/admin/products")
-    public ApiResponse<?> addProduct(
-            @RequestHeader("X-Token") String t,
-            @RequestBody Product p) {
+    public ApiResponse<?> addProduct(@RequestHeader("X-Token") String t, @RequestBody Product p) {
         admin(t);
         if (p.name == null || p.name.isBlank()) throw new BizException("商品名称不能为空");
         if (p.price == null || p.price.signum() < 0) throw new BizException("商品价格不合法");
-        if (p.categoryId == null || cats.findById(p.categoryId).isEmpty()) throw new BizException("请选择有效商品分类");
-        if (p.brandId == null || brands.findById(p.brandId).isEmpty()) throw new BizException("请选择有效商品品牌");
+        if (p.categoryId == null || cats.findById(p.categoryId).isEmpty())
+            throw new BizException("请选择有效商品分类");
+        if (p.brandId == null || brands.findById(p.brandId).isEmpty())
+            throw new BizException("请选择有效商品品牌");
         p.id = null;
         if (p.type == null || p.type.isBlank()) p.type = "ROBOT";
         if (p.image == null || p.image.isBlank()) p.image = "/products/placeholder.svg";
         if (p.skuOptions == null || p.skuOptions.isBlank()) p.skuOptions = "标准版";
         if (p.marketPrice == null || p.marketPrice.compareTo(p.price) < 0) p.marketPrice = p.price;
         if (p.warranty == null || p.warranty.isBlank()) p.warranty = "整机保修 1 年";
-        if (p.shippingNote == null || p.shippingNote.isBlank()) p.shippingNote = "现货商品预计 24～48 小时内发出";
+        if (p.shippingNote == null || p.shippingNote.isBlank())
+            p.shippingNote = "现货商品预计 24～48 小时内发出";
         products.save(p);
         return ApiResponse.ok(p);
     }
 
+    /** 更新商品资料。 */
     @PutMapping("/admin/products/{id}")
     public ApiResponse<?> updateProduct(
-            @RequestHeader("X-Token") String t,
-            @PathVariable Long id,
-            @RequestBody Product p) {
+            @RequestHeader("X-Token") String t, @PathVariable Long id, @RequestBody Product p) {
         admin(t);
         Product old = products.findById(id).orElseThrow(() -> new BizException("商品不存在"));
         if (p.name == null || p.name.isBlank()) throw new BizException("商品名称不能为空");
         if (p.price == null || p.price.signum() < 0) throw new BizException("商品价格不合法");
-        if (p.categoryId == null || cats.findById(p.categoryId).isEmpty()) throw new BizException("请选择有效商品分类");
-        if (p.brandId == null || brands.findById(p.brandId).isEmpty()) throw new BizException("请选择有效商品品牌");
+        if (p.categoryId == null || cats.findById(p.categoryId).isEmpty())
+            throw new BizException("请选择有效商品分类");
+        if (p.brandId == null || brands.findById(p.brandId).isEmpty())
+            throw new BizException("请选择有效商品品牌");
         old.name = p.name;
         old.subtitle = p.subtitle;
         old.type = p.type;
@@ -1231,10 +1707,9 @@ public class ApiController {
         return ApiResponse.ok(old);
     }
 
+    /** 改为下架而非删除订单历史。 */
     @DeleteMapping("/admin/products/{id}")
-    public ApiResponse<?> deleteProduct(
-            @RequestHeader("X-Token") String t,
-            @PathVariable Long id) {
+    public ApiResponse<?> deleteProduct(@RequestHeader("X-Token") String t, @PathVariable Long id) {
         admin(t);
         Product product = products.findById(id).orElseThrow(() -> new BizException("商品不存在"));
         product.enabled = false;
@@ -1242,14 +1717,17 @@ public class ApiController {
         return ApiResponse.ok(product);
     }
 
+    /** 读取后台订单列表。 */
     @GetMapping("/admin/orders")
     public ApiResponse<?> adminOrders(@RequestHeader("X-Token") String t) {
         admin(t);
-        return ApiResponse.ok(orders.findAll().stream()
-                .sorted(Comparator.comparing((OrderEntity x) -> x.createdAt).reversed())
-                .toList());
+        return ApiResponse.ok(
+                orders.findAll().stream()
+                        .sorted(Comparator.comparing((OrderEntity x) -> x.createdAt).reversed())
+                        .toList());
     }
 
+    /** 校验状态并记录发货信息。 */
     @PostMapping("/admin/orders/{id}/ship")
     public ApiResponse<?> shipOrder(
             @RequestHeader("X-Token") String t,
@@ -1258,10 +1736,13 @@ public class ApiController {
         admin(t);
         OrderEntity order = orders.findById(id).orElseThrow(() -> new BizException("订单不存在"));
         if (!"PAID".equals(order.status)) throw new BizException("订单状态不正确");
-        if (body == null || !(body.get("logisticsCompany") instanceof String company)
+        if (body == null
+                || !(body.get("logisticsCompany") instanceof String company)
                 || !(body.get("logisticsNo") instanceof String number)
-                || company.isBlank() || number.isBlank()) throw new BizException("物流公司和单号不能为空");
-        if (company.trim().length() > 50 || number.trim().length() > 80) throw new BizException("物流信息长度超出限制");
+                || company.isBlank()
+                || number.isBlank()) throw new BizException("物流公司和单号不能为空");
+        if (company.trim().length() > 50 || number.trim().length() > 80)
+            throw new BizException("物流信息长度超出限制");
         order.logisticsCompany = company.trim();
         order.logisticsNo = number.trim();
         order.status = "SHIPPED";

@@ -1,3 +1,4 @@
+# 启用本地数据库配置时使用的参数。
 spring:
   datasource:
     url: ${DB_URL}

@@ -1,3 +1,4 @@
+# 运行公网网关、Java 接口与数据库；密钥从服务器环境注入。
 # Backend-only deployment. Never publish MySQL or the Java service directly.
 name: robotmall-cloud
 services:

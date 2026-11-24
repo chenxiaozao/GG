@@ -21,11 +21,13 @@ const logistics = reactive<
   Record<number, { company: string; logisticsNo: string }>
 >({});
 
+/** 筛出可发起售后的订单。 */
 const eligibleOrders = computed(() =>
   orders.value.filter((entry) =>
     ["PAID", "SHIPPED", "COMPLETED"].includes(entry.order.status),
   ),
 );
+/** 找出用户选定的订单明细。 */
 const selectedEntry = computed(() =>
   eligibleOrders.value.find((entry) => String(entry.order.id) === form.orderId),
 );
@@ -53,6 +55,7 @@ const steps = [
   "COMPLETED",
 ];
 
+/** 加载本人售后和可用订单。 */
 async function load() {
   loading.value = true;
   loadError.value = "";
@@ -67,9 +70,11 @@ async function load() {
     loading.value = false;
   }
 }
+/** 切换订单时更新售后表单。 */
 function chooseOrder() {
   form.orderItemId = "";
 }
+/** 提交当前订单明细的售后申请。 */
 async function submit() {
   if (submitting.value || actingId.value !== null) return;
   if (form.description.trim().length < 5) {
@@ -103,6 +108,7 @@ async function submit() {
     submitting.value = false;
   }
 }
+/** 取消本人尚可取消的申请。 */
 async function cancel(id: number) {
   if (actingId.value !== null || submitting.value) return;
   if (!confirm("确认取消这笔售后申请？")) return;
@@ -117,6 +123,7 @@ async function cancel(id: number) {
     actingId.value = null;
   }
 }
+/** 提交退回商品的物流编号。 */
 async function submitLogistics(id: number) {
   if (actingId.value !== null || submitting.value) return;
   const draft = logistics[id];
@@ -139,6 +146,7 @@ async function submitLogistics(id: number) {
     actingId.value = null;
   }
 }
+/** 把售后状态转成进度展示信息。 */
 function progress(request: any) {
   if (["REJECTED", "CANCELLED"].includes(request.status)) return 0;
   return Math.max(0, steps.indexOf(request.status));

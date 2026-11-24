@@ -3,18 +3,25 @@ package com.xiaozao.robotmall.entity;
 import java.time.LocalDateTime;
 import jakarta.persistence.*;
 
-@Entity @Table(uniqueConstraints=@UniqueConstraint(columnNames= {
-    "userId","orderItemId"
-}
-)) public class Review {
-    @Id @GeneratedValue(strategy=GenerationType.IDENTITY) public Long id;
+/** 表示已购商品评价。 */
+@Entity
+@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"userId", "orderItemId"}))
+public class Review {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    public Long id;
+
     public Long userId;
     public Long productId;
     public Long orderItemId;
     public int score;
-    @Column(length=2000) public String content;
+
+    @Column(length = 2000)
+    public String content;
+
     public LocalDateTime createdAt;
-    public boolean visible=true;
-    public Review() {
-    }
+    public boolean visible = true;
+
+    /** 构造供持久化框架初始化的记录。 */
+    public Review() {}
 }

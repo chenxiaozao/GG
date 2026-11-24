@@ -1,3 +1,4 @@
+# 打包本地容器运行的 Java 后端。
 FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /build
 COPY pom.xml ./

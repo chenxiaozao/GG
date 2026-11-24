@@ -1,6 +1,7 @@
 import { chromium } from "playwright-core";
 
 // Own an isolated test process; never attach to or close the user's Chrome window.
+/** 启动独立浏览器供页面审查。 */
 export async function launchAuditBrowser(options) {
   const server = await chromium.launchServer(options);
   let browser;
@@ -10,9 +11,13 @@ export async function launchAuditBrowser(options) {
     await server.kill();
     throw error;
   }
+  /** 关闭当前审查浏览器及其进程。 */
   async function shutdown() {
     const child = server.process();
-    const terminated = () => child.exitCode !== null || child.signalCode !== null;
+    /** 等待被启动的进程退出。 */
+    const terminated = () =>
+      child.exitCode !== null || child.signalCode !== null;
+    /** 限定审查操作的等待时间。 */
     async function bounded(operation, milliseconds) {
       let timer;
       try {
@@ -36,7 +41,9 @@ export async function launchAuditBrowser(options) {
     }
     if (!terminated()) throw new Error("本次专用测试浏览器进程尚未退出");
     if (!graceful)
-      console.warn("专用测试浏览器已退出，但清理等待超时；页面检查报告已保留。");
+      console.warn(
+        "专用测试浏览器已退出，但清理等待超时；页面检查报告已保留。",
+      );
     return { forced, terminated: true, cleanupTimedOut: !graceful };
   }
   return { browser, shutdown };

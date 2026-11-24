@@ -31,6 +31,7 @@ const groups = [
     ],
   },
 ];
+/** 判断当前路由是否命中账号菜单项。 */
 function active(to: string) {
   const [path, hash = ""] = to.split("#");
   return (

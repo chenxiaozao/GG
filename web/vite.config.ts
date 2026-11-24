@@ -1,3 +1,4 @@
+/** 配置开发代理、前端发布路径和构建行为。 */
 import { defineConfig, loadEnv } from "vite";
 import vue from "@vitejs/plugin-vue";
 export default defineConfig(({ mode }) => ({

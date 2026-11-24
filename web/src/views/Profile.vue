@@ -4,9 +4,9 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import UiIcon from "../components/UiIcon.vue";
 import api from "../api";
-import ShoppingPreferencePanel from '../components/ShoppingPreferencePanel.vue';
-import ProductGrid from '../components/ProductGrid.vue';
-import ShoppingPlanPanel from '../components/ShoppingPlanPanel.vue';
+import ShoppingPreferencePanel from "../components/ShoppingPreferencePanel.vue";
+import ProductGrid from "../components/ProductGrid.vue";
+import ShoppingPlanPanel from "../components/ShoppingPlanPanel.vue";
 import { chinaRegions, regionDataVersion } from "../data/chinaRegionsFull";
 import { useAuthStore } from "../stores/auth";
 import {
@@ -28,10 +28,12 @@ const sections = [
   { id: "preferences", name: "选购偏好", icon: "settings" },
   { id: "appearance", name: "界面与主题", icon: "palette" },
 ];
+/** 根据路由片段确定当前个人中心区域。 */
 const activeSection = computed(() => {
   const id = route.hash.slice(1);
   return sections.some((item) => item.id === id) ? id : "overview";
 });
+/** 更新路由片段以切换显示区域。 */
 function switchSection(id: string) {
   message.value = "";
   router.replace({ path: "/profile", hash: id === "overview" ? "" : `#${id}` });
@@ -98,9 +100,11 @@ const selectedProvince = ref("");
 const selectedCity = ref("");
 const selectedDistrict = ref("");
 const provinceOptions = Object.keys(chinaRegions);
+/** 读取选中省份下的地级市选项。 */
 const cityOptions = computed(() =>
   Object.keys(chinaRegions[selectedProvince.value] || {}),
 );
+/** 读取选中城市下的区县选项。 */
 const districtOptions = computed(
   () => chinaRegions[selectedProvince.value]?.[selectedCity.value] || [],
 );
@@ -151,6 +155,7 @@ const layouts: Array<{
   },
 ];
 
+/** 根据页面状态生成问候语。 */
 const greeting = computed(() => {
   const hour = new Date().getHours();
   if (hour < 11) return "早上好";
@@ -159,6 +164,7 @@ const greeting = computed(() => {
   return "晚上好";
 });
 
+/** 加载账号概览和所需资料。 */
 async function load() {
   loading.value = true;
   try {
@@ -168,10 +174,14 @@ async function load() {
     ]);
     summary.value = summaryResult;
     try {
-      const favorites = await api.get('/favorites') as any[];
-      favoriteProducts.value = favorites.map(entry => entry.product || entry).filter(p => p?.id);
+      const favorites = (await api.get("/favorites")) as any[];
+      favoriteProducts.value = favorites
+        .map((entry) => entry.product || entry)
+        .filter((p) => p?.id);
       favoritesError.value = false;
-    } catch { favoritesError.value = true; }
+    } catch {
+      favoritesError.value = true;
+    }
     addresses.value = addressResult as any[];
     Object.assign(profileForm, {
       nickname: auth.user?.nickname || "",
@@ -186,6 +196,7 @@ async function load() {
   }
 }
 
+/** 提交本人资料修改。 */
 async function saveProfile() {
   try {
     const user: any = await api.put("/profile", profileForm);
@@ -197,6 +208,7 @@ async function saveProfile() {
   }
 }
 
+/** 由画布导出裁剪后的头像。 */
 async function cropAvatar(): Promise<Blob> {
   const image = avatarImage.value;
   if (!image) throw new Error("请先选择头像图片");
@@ -229,6 +241,7 @@ async function cropAvatar(): Promise<Blob> {
   );
 }
 
+/** 读取选中的图片并打开裁剪编辑器。 */
 async function uploadAvatar(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
@@ -259,6 +272,7 @@ async function uploadAvatar(event: Event) {
     input.value = "";
   }
 }
+/** 记录头像拖动的起始信息。 */
 function startAvatarDrag(event: PointerEvent) {
   dragStart = {
     x: event.clientX,
@@ -268,20 +282,24 @@ function startAvatarDrag(event: PointerEvent) {
   };
   (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
 }
+/** 按指针位移移动裁剪图片。 */
 function moveAvatarDrag(event: PointerEvent) {
   if (!dragStart) return;
   avatarOffsetX.value = dragStart.ox + event.clientX - dragStart.x;
   avatarOffsetY.value = dragStart.oy + event.clientY - dragStart.y;
 }
+/** 结束当前头像拖动。 */
 function endAvatarDrag() {
   dragStart = null;
 }
+/** 关闭并清理头像裁剪编辑器。 */
 function closeAvatarEditor() {
   avatarEditorOpen.value = false;
   if (avatarSource.value) URL.revokeObjectURL(avatarSource.value);
   avatarSource.value = "";
   avatarImage.value = null;
 }
+/** 提交裁剪后的图片给服务端。 */
 async function confirmAvatar() {
   avatarUploading.value = true;
   try {
@@ -301,6 +319,7 @@ async function confirmAvatar() {
   }
 }
 
+/** 校验两次新密码后提交改密。 */
 async function changePassword() {
   if (passwordForm.newPassword !== passwordForm.confirmPassword) {
     message.value = "两次输入的新密码不一致";
@@ -317,12 +336,16 @@ async function changePassword() {
       confirmPassword: "",
     });
     auth.clearSession();
-    await router.replace({ path: "/login", query: { notice: "password-changed" } });
+    await router.replace({
+      path: "/login",
+      query: { notice: "password-changed" },
+    });
   } catch (error: any) {
     message.value = error?.message || "密码修改失败";
   }
 }
 
+/** 清空地址编辑状态。 */
 function resetAddressForm() {
   editingAddressId.value = null;
   manualRegion.value = false;
@@ -340,6 +363,7 @@ function resetAddressForm() {
   });
 }
 
+/** 读取指定地址到编辑表单。 */
 function editAddress(address: any) {
   editingAddressId.value = address.id;
   Object.assign(addressForm, address);
@@ -353,6 +377,7 @@ function editAddress(address: any) {
     ?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
+/** 切换省份并重置市区。 */
 function chooseProvince() {
   selectedCity.value = "";
   selectedDistrict.value = "";
@@ -363,15 +388,18 @@ function chooseProvince() {
   });
 }
 
+/** 切换城市并重置区县。 */
 function chooseCity() {
   selectedDistrict.value = "";
   Object.assign(addressForm, { city: selectedCity.value, district: "" });
 }
 
+/** 把区县选择写入表单。 */
 function chooseDistrict() {
   addressForm.district = selectedDistrict.value;
 }
 
+/** 在地区级联和手动填写间切换。 */
 function setRegionMode(manual: boolean) {
   manualRegion.value = manual;
   selectedProvince.value = "";
@@ -380,6 +408,7 @@ function setRegionMode(manual: boolean) {
   Object.assign(addressForm, { province: "", city: "", district: "" });
 }
 
+/** 提交收货地址的新增或修改。 */
 async function saveAddress() {
   try {
     if (editingAddressId.value)
@@ -395,6 +424,7 @@ async function saveAddress() {
   }
 }
 
+/** 删除本人选择的收货地址。 */
 async function removeAddress(address: any) {
   if (!window.confirm(`确定删除 ${address.receiver} 的收货地址吗？`)) return;
   try {
@@ -407,6 +437,7 @@ async function removeAddress(address: any) {
   }
 }
 
+/** 切换个人中心主题。 */
 async function chooseTheme(id: ThemeName) {
   try {
     await theme.select(id);
@@ -417,6 +448,7 @@ async function chooseTheme(id: ThemeName) {
     message.value = error?.message || "主题保存失败";
   }
 }
+/** 切换个人中心布局。 */
 async function chooseLayout(id: InterfaceLayout) {
   try {
     await theme.selectLayout(id);
@@ -426,6 +458,7 @@ async function chooseLayout(id: InterfaceLayout) {
   }
 }
 
+/** 应用并保存自定义配色。 */
 async function saveCustomTheme() {
   try {
     await theme.customize(accent.value, background.value);
@@ -435,6 +468,7 @@ async function saveCustomTheme() {
   }
 }
 
+/** 格式化活动时间。 */
 function formatTime(value: string) {
   return value
     ? new Date(value).toLocaleString("zh-CN", {
@@ -484,11 +518,64 @@ onMounted(() => {
 
       <div class="notice" v-if="message">{{ message }}</div>
       <ShoppingPlanPanel v-if="activeSection === 'plans'" />
-      <section v-if="activeSection === 'overview'" class="space-continuation" aria-label="继续我的选购">
-        <div><span>专属于你的选购空间</span><h2>把喜欢的留下，把选择想清楚。</h2><p>这里不只有订单。你的心愿清单、浏览足迹和选购偏好，都可以从这里继续。</p></div>
-        <nav><router-link to="/favorites"><UiIcon name="heart" /><b>我的心愿清单</b><small>重看收藏的商品 →</small></router-link><router-link to="/compare"><UiIcon name="compare" /><b>比较候选商品</b><small>看清参数差异 →</small></router-link><router-link to="/advisor"><UiIcon name="spark" /><b>和选购助手聊聊</b><small>从使用需求开始 →</small></router-link></nav>
+      <section
+        v-if="activeSection === 'overview'"
+        class="space-continuation"
+        aria-label="继续我的选购"
+      >
+        <div>
+          <span>专属于你的选购空间</span>
+          <h2>把喜欢的留下，把选择想清楚。</h2>
+          <p>
+            这里不只有订单。你的心愿清单、浏览足迹和选购偏好，都可以从这里继续。
+          </p>
+        </div>
+        <nav>
+          <router-link to="/favorites"
+            ><UiIcon name="heart" /><b>我的心愿清单</b
+            ><small>重看收藏的商品 →</small></router-link
+          ><router-link to="/compare"
+            ><UiIcon name="compare" /><b>比较候选商品</b
+            ><small>看清参数差异 →</small></router-link
+          ><router-link to="/advisor"
+            ><UiIcon name="spark" /><b>和选购助手聊聊</b
+            ><small>从使用需求开始 →</small></router-link
+          >
+        </nav>
       </section>
-      <section v-if="activeSection === 'overview'" class="personal-shelf" aria-label="我的收藏预览"><div class="scene-heading"><div><span class="section-kicker">我的心愿清单</span><h2>喜欢的，不必重新找</h2></div><router-link to="/favorites">管理全部收藏 →</router-link></div><ProductGrid v-if="favoriteProducts.length" :products="favoriteProducts.slice(0,3)" /><div v-else class="shelf-empty"><UiIcon name="heart" :size="32" /><div><h3>{{ favoritesError ? '收藏暂时未能加载' : '给喜欢的商品留个位置' }}</h3><p>{{ favoritesError ? '请进入收藏页重试，你的收藏不会被清除。' : '在商品详情页点一下收藏，下次回来就能从这里继续。' }}</p></div><router-link to="/products">去逛逛 →</router-link></div></section>
+      <section
+        v-if="activeSection === 'overview'"
+        class="personal-shelf"
+        aria-label="我的收藏预览"
+      >
+        <div class="scene-heading">
+          <div>
+            <span class="section-kicker">我的心愿清单</span>
+            <h2>喜欢的，不必重新找</h2>
+          </div>
+          <router-link to="/favorites">管理全部收藏 →</router-link>
+        </div>
+        <ProductGrid
+          v-if="favoriteProducts.length"
+          :products="favoriteProducts.slice(0, 3)"
+        />
+        <div v-else class="shelf-empty">
+          <UiIcon name="heart" :size="32" />
+          <div>
+            <h3>
+              {{ favoritesError ? "收藏暂时未能加载" : "给喜欢的商品留个位置" }}
+            </h3>
+            <p>
+              {{
+                favoritesError
+                  ? "请进入收藏页重试，你的收藏不会被清除。"
+                  : "在商品详情页点一下收藏，下次回来就能从这里继续。"
+              }}
+            </p>
+          </div>
+          <router-link to="/products">去逛逛 →</router-link>
+        </div>
+      </section>
       <div class="profile-layout" v-show="activeSection !== 'plans'">
         <div class="profile-main">
           <section
@@ -647,7 +734,14 @@ onMounted(() => {
                   inputmode="numeric"
                   maxlength="11"
                   placeholder="用于订单联系"
-              /><small>仅用于联系，{{auth.user?.phoneVerified?'已验证':'未短信验证，不是手机号登录绑定'}}</small></label>
+                /><small
+                  >仅用于联系，{{
+                    auth.user?.phoneVerified
+                      ? "已验证"
+                      : "未短信验证，不是手机号登录绑定"
+                  }}</small
+                ></label
+              >
               <label
                 ><span>电子邮箱</span
                 ><input
@@ -881,7 +975,9 @@ onMounted(() => {
               </div>
               <small>修改后撤销旧登录凭证，需要重新登录</small>
             </div>
-            <p v-if="auth.user?.mustChangePassword" class="notice" role="alert">管理员已重置临时密码。请先设置你自己的密码，再使用其他账户功能。</p>
+            <p v-if="auth.user?.mustChangePassword" class="notice" role="alert">
+              管理员已重置临时密码。请先设置你自己的密码，再使用其他账户功能。
+            </p>
             <form class="password-form" @submit.prevent="changePassword">
               <label
                 ><span>原密码</span
@@ -919,7 +1015,13 @@ onMounted(() => {
             </form>
           </section>
 
-          <section v-if="activeSection === 'preferences'" id="preferences" class="profile-section profile-form-section"><ShoppingPreferencePanel /></section>
+          <section
+            v-if="activeSection === 'preferences'"
+            id="preferences"
+            class="profile-section profile-form-section"
+          >
+            <ShoppingPreferencePanel />
+          </section>
           <section
             v-show="activeSection === 'appearance'"
             id="appearance"

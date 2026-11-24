@@ -1,3 +1,4 @@
+# 按需演示环境的隔离配置。
 server:
   address: 127.0.0.1
   port: ${PORT:8080}

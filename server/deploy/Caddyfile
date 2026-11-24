@@ -1,3 +1,4 @@
+# 终止 HTTPS 并将接口与头像请求转给后端。
 {
     email {$ACME_EMAIL}
     admin off

@@ -1,3 +1,4 @@
+/** 在不同视口和布局设置下审查页面。 */
 import { launchAuditBrowser } from "./audit-browser.mjs";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -12,7 +13,8 @@ const response = await fetch("http://127.0.0.1:8080/api/auth/login", {
 });
 const login = await response.json();
 assert.equal(login.code, 200);
-if (login.data.user) login.data = { ...login.data.user, token: login.data.token };
+if (login.data.user)
+  login.data = { ...login.data.user, token: login.data.token };
 const { browser, shutdown } = await launchAuditBrowser({
   headless: true,
   executablePath:
@@ -104,7 +106,8 @@ try {
               "页面水平溢出",
             );
             if (route === "/profile") {
-              if (viewport.width <= 900) await page.locator('.account-menu-toggle').click();
+              if (viewport.width <= 900)
+                await page.locator(".account-menu-toggle").click();
               await page
                 .locator("#account-navigation")
                 .getByRole("link", { name: "界面与主题", exact: true })

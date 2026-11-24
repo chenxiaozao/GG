@@ -1,3 +1,4 @@
+/** 打包云端上线所需应用及部署模板，不打包真实密钥配置。 */
 // Run on the development computer. Release contents are an explicit allowlist, not a project copy.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import ProductImage from "./ProductImage.vue";
-import { specs } from '../productSpecs';
-import {useComparison} from '../stores/comparison';
-const comparison=useComparison();
+import { specs } from "../productSpecs";
+import { useComparison } from "../stores/comparison";
+const comparison = useComparison();
 defineProps<{
   products: any[];
   manageable?: boolean;
@@ -13,18 +13,25 @@ defineProps<{
   loading?: boolean;
 }>();
 defineEmits<{ remove: [product: any]; toggleSelect: [product: any] }>();
+/** 把金额格式化为中文地区显示。 */
 function formatPrice(value: unknown) {
   return Number(value || 0).toLocaleString("zh-CN", {
     maximumFractionDigits: 2,
   });
 }
+/** 格式化商品浏览时间。 */
 function formatViewedAt(value: string) {
   return String(value).replace("T", " ").slice(0, 16);
 }
+/** 从目录规格中选取卡片展示的关键项。 */
 function keySpecs(product: any): [string, string][] {
   try {
-    return specs(product).slice(0,3).map(s=>[s.label,s.value]);
-  } catch { return []; }
+    return specs(product)
+      .slice(0, 3)
+      .map((s) => [s.label, s.value]);
+  } catch {
+    return [];
+  }
 }
 </script>
 
@@ -83,21 +90,45 @@ function keySpecs(product: any): [string, string][] {
         <div class="product-subtitle">
           {{ product.subtitle || "专业机器人商品" }}
         </div>
-        <dl class="product-key-specs"><div v-for="[key, value] in keySpecs(product)" :key="key"><dt>{{ key }}</dt><dd>{{ value }}</dd></div></dl>
+        <dl class="product-key-specs">
+          <div v-for="[key, value] in keySpecs(product)" :key="key">
+            <dt>{{ key }}</dt>
+            <dd>{{ value }}</dd>
+          </div>
+        </dl>
         <div class="product-price-row">
           <div class="price"><i>¥</i>{{ formatPrice(product.price) }}</div>
           <del v-if="Number(product.marketPrice) > Number(product.price)"
             >¥{{ formatPrice(product.marketPrice) }}</del
           >
         </div>
-        <div v-if="product.stock <= 0" class="product-stats"><span>暂时缺货</span></div>
+        <div v-if="product.stock <= 0" class="product-stats">
+          <span>暂时缺货</span>
+        </div>
         <p v-if="product.lastViewedAt" class="product-viewed-at">
           最近浏览 {{ formatViewedAt(product.lastViewedAt) }}
         </p>
       </router-link>
       <div class="product-card-actions">
-        <router-link class="product-detail-entry" :to="`/product/${product.id}`">查看详情</router-link>
-        <button v-if="product.type === 'ROBOT' && !manageable" type="button" class="product-compare-entry" :aria-pressed="comparison.items.some(p=>p.id===product.id)" @click="comparison.toggle(product)">{{ comparison.items.some(p=>p.id===product.id)?'已加入对比':'加入对比' }} <span aria-hidden="true">{{ comparison.items.some(p=>p.id===product.id)?'✓':'＋' }}</span></button>
+        <router-link class="product-detail-entry" :to="`/product/${product.id}`"
+          >查看详情</router-link
+        >
+        <button
+          v-if="product.type === 'ROBOT' && !manageable"
+          type="button"
+          class="product-compare-entry"
+          :aria-pressed="comparison.items.some((p) => p.id === product.id)"
+          @click="comparison.toggle(product)"
+        >
+          {{
+            comparison.items.some((p) => p.id === product.id)
+              ? "已加入对比"
+              : "加入对比"
+          }}
+          <span aria-hidden="true">{{
+            comparison.items.some((p) => p.id === product.id) ? "✓" : "＋"
+          }}</span>
+        </button>
       </div>
       <slot name="notes" :product="product" />
       <button

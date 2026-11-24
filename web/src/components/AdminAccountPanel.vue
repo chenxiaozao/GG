@@ -27,6 +27,7 @@ const actionLabels: Record<string, string> = {
   RESET_PASSWORD: "重置密码",
   UPDATE_UNVERIFIED_PHONE: "维护未验证联系方式",
 };
+/** 查询当前维护对象的审计记录。 */
 async function loadAudit() {
   try {
     audit.value = (await api.get(
@@ -36,6 +37,7 @@ async function loadAudit() {
     message.value = e.message;
   }
 }
+/** 按授权读取选购画像。 */
 async function viewProfile() {
   busy.value = true;
   message.value = "";
@@ -50,6 +52,7 @@ async function viewProfile() {
     busy.value = false;
   }
 }
+/** 提交重置密码或变更手机号的维护动作。 */
 async function act(kind: "reset-password" | "phone") {
   if (busy.value) return;
   if (

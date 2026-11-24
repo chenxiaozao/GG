@@ -3,8 +3,8 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import api from "../api";
 import ProductImage from "../components/ProductImage.vue";
-import { specs, specExplanation } from '../productSpecs';
-import { advisorContext } from '../shoppingContext';
+import { specs, specExplanation } from "../productSpecs";
+import { advisorContext } from "../shoppingContext";
 import { useAuthStore } from "../stores/auth";
 import {
   addGuestCart,
@@ -25,6 +25,7 @@ const error = ref("");
 const imageUnavailable = ref(false);
 const actionBusy = ref(false);
 let loadSequence = 0;
+/** 生成商品媒体资料的来源链接。 */
 const sourceLink = computed(() => {
   try {
     const url = new URL(product.value?.sourceUrl || "");
@@ -34,25 +35,29 @@ const sourceLink = computed(() => {
   }
 });
 
+/** 读取并规范化商品规格选项。 */
 const skuOptions = computed(() =>
   String(product.value?.skuOptions || "标准版")
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean),
 );
+/** 构造详情展示用的参数行。 */
 const parameterRows = computed(() => {
   try {
-    return specs(product.value).map(s=>[s.label,s.value]);
+    return specs(product.value).map((s) => [s.label, s.value]);
   } catch {
     return [];
   }
 });
+/** 格式化商品价格。 */
 function formatPrice(value: unknown) {
   return Number(value || 0).toLocaleString("zh-CN", {
     maximumFractionDigits: 2,
   });
 }
 
+/** 加载商品、配件及评价。 */
 async function load() {
   const sequence = ++loadSequence;
   const productId = route.params.id;
@@ -90,6 +95,7 @@ async function load() {
   }
 }
 
+/** 根据登录状态加入账号或访客购物车。 */
 async function add() {
   if (actionBusy.value || !product.value || Number(product.value.stock) <= 0)
     return;
@@ -115,6 +121,7 @@ async function add() {
   }
 }
 
+/** 根据登录状态切换对该商品的收藏。 */
 async function fav() {
   if (actionBusy.value || !product.value) return;
   if (!auth.logged) {
@@ -192,7 +199,11 @@ watch(() => route.params.id, load);
             {{ product.subtitle || "专业机器人商品" }}
           </p>
           <div class="detail-rating">
-            <b>{{ Number(product.rating) > 0 ? `★ ${Number(product.rating).toFixed(1)} 评分` : '暂无评分' }}</b
+            <b>{{
+              Number(product.rating) > 0
+                ? `★ ${Number(product.rating).toFixed(1)} 评分`
+                : "暂无评分"
+            }}</b
             ><span>销量 {{ product.sales || 0 }}</span
             ><span>库存 {{ product.stock }}</span>
           </div>
@@ -224,14 +235,31 @@ watch(() => route.params.id, load);
           <div class="purchase-row">
             <label>购买数量</label>
             <div class="quantity-stepper">
-              <button type="button" aria-label="减少购买数量" :disabled="qty<=1" @click="qty = Math.max(1, qty - 1)">−</button
+              <button
+                type="button"
+                aria-label="减少购买数量"
+                :disabled="qty <= 1"
+                @click="qty = Math.max(1, qty - 1)"
+              >
+                −</button
               ><input
                 type="number"
                 min="1"
                 :max="product.stock"
                 v-model.number="qty"
-                aria-label="购买数量" @change="qty=Math.max(1,Math.min(product.stock,Math.trunc(Number(qty)||1)))"
-              /><button type="button" aria-label="增加购买数量" :disabled="qty>=product.stock || product.stock<=0" @click="qty = Math.min(product.stock, (Number(qty)||1) + 1)">
+                aria-label="购买数量"
+                @change="
+                  qty = Math.max(
+                    1,
+                    Math.min(product.stock, Math.trunc(Number(qty) || 1)),
+                  )
+                "
+              /><button
+                type="button"
+                aria-label="增加购买数量"
+                :disabled="qty >= product.stock || product.stock <= 0"
+                @click="qty = Math.min(product.stock, (Number(qty) || 1) + 1)"
+              >
                 ＋
               </button>
             </div>
@@ -256,11 +284,7 @@ watch(() => route.params.id, load);
           </div>
           <div class="detail-services">
             <span>✓ 订单服务</span><span>✓ 库存校验</span
-            ><span
-              >售后政策：{{
-                product.warranty || "以商品说明为准"
-              }}</span
-            >
+            ><span>售后政策：{{ product.warranty || "以商品说明为准" }}</span>
           </div>
           <div class="notice" v-if="message">{{ message }}</div>
         </div>
@@ -270,12 +294,28 @@ watch(() => route.params.id, load);
         <div class="product-content-main">
           <section class="card product-info-section">
             <h2>商品参数</h2>
-            <router-link class="btn secondary" to="/advisor" @click="advisorContext([product], '这款机器人适合我的使用需求吗？请先问我预算和场景，并说明它的不足。')">问 AI：这款适合我吗？</router-link>
+            <router-link
+              class="btn secondary"
+              to="/advisor"
+              @click="
+                advisorContext(
+                  [product],
+                  '这款机器人适合我的使用需求吗？请先问我预算和场景，并说明它的不足。',
+                )
+              "
+              >问 AI：这款适合我吗？</router-link
+            >
             <p class="muted">不同品类使用各自的参数结构，便于同类商品比较。</p>
             <table class="table parameter-table">
               <tbody>
                 <tr v-for="row in parameterRows" :key="String(row[0])">
-                  <th>{{ row[0] }}<details><summary>如何理解</summary><small>{{ specExplanation(String(row[0])) }}</small></details></th>
+                  <th>
+                    {{ row[0] }}
+                    <details>
+                      <summary>如何理解</summary>
+                      <small>{{ specExplanation(String(row[0])) }}</small>
+                    </details>
+                  </th>
                   <td>{{ row[1] }}</td>
                 </tr>
                 <tr v-if="!parameterRows.length">

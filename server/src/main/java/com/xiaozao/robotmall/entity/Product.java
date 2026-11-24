@@ -3,8 +3,13 @@ package com.xiaozao.robotmall.entity;
 import java.math.BigDecimal;
 import jakarta.persistence.*;
 
-@Entity public class Product {
-    @Id @GeneratedValue(strategy=GenerationType.IDENTITY) public Long id;
+/** 表示商品库存、价格和规格。 */
+@Entity
+public class Product {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    public Long id;
+
     public String name;
     public String subtitle;
     public Long categoryId;
@@ -23,9 +28,14 @@ import jakarta.persistence.*;
     public String sourceUrl;
     public String warranty;
     public String shippingNote;
-    @Column(length=4000) public String description;
-    @Column(length=4000) public String parametersJson;
-    public boolean enabled=true;
+
+    @Column(length = 4000)
+    public String description;
+
+    @Column(length = 4000)
+    public String parametersJson;
+
+    public boolean enabled = true;
     @Transient public String categoryName;
     @Transient public String brandName;
     @Transient public String imageKind;
@@ -33,6 +43,7 @@ import jakarta.persistence.*;
     @Transient public String imageSourceUrl;
     @Transient public String imageCheckedAt;
     @Transient public String sourceRegion;
-    public Product() {
-    }
+
+    /** 构造供持久化框架初始化的记录。 */
+    public Product() {}
 }

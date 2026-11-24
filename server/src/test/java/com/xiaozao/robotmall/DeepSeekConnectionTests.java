@@ -11,14 +11,19 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /** No real credentials or external requests: inject a mock transport for failure cases. */
+/** 用模拟传输验证外部模型协议与失败行为。 */
 class DeepSeekConnectionTests {
+    /** 构造指定的模拟外部响应。 */
     @SuppressWarnings("unchecked")
     private DeepSeekAdvisorService withResponse(int status, String body) throws Exception {
         HttpClient client = mock(HttpClient.class);
         HttpResponse<String> response = mock(HttpResponse.class);
         when(response.statusCode()).thenReturn(status);
         when(response.body()).thenReturn(body);
-        when(client.send(any(HttpRequest.class), org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any())).thenReturn(response);
+        when(client.send(
+                        any(HttpRequest.class),
+                        org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
+                .thenReturn(response);
         DeepSeekAdvisorService service = new DeepSeekAdvisorService(new ObjectMapper());
         ReflectionTestUtils.setField(service, "apiKey", "dummy-test-only");
         ReflectionTestUtils.setField(service, "baseUrl", "https://example.invalid");
@@ -26,51 +31,133 @@ class DeepSeekConnectionTests {
         ReflectionTestUtils.setField(service, "client", client);
         return service;
     }
-    @Test void invalidKeyRateLimitAndProviderFailureHaveReadableErrors() throws Exception {
+
+    /** 验证鉴权、限流及上游失败的提示。 */
+    @Test
+    void invalidKeyRateLimitAndProviderFailureHaveReadableErrors() throws Exception {
         for (int status : new int[] {401, 429, 503}) {
             var service = withResponse(status, "provider response must not be exposed");
-            var error = assertThrows(BizException.class, () -> service.chat("虚构问题", List.of(), List.of()));
+            var error =
+                    assertThrows(
+                            BizException.class, () -> service.chat("虚构问题", List.of(), List.of()));
             assertTrue(error.getMessage().contains("HTTP " + status));
             assertFalse(error.getMessage().contains("provider response"));
         }
     }
-    @Test void timeoutAndNetworkFailureAreHandled() throws Exception {
-        for (Exception failure : new Exception[] {new HttpTimeoutException("timed out"), new java.io.IOException("unavailable")}) {
+
+    /** 验证超时和网络异常得到处理。 */
+    @Test
+    void timeoutAndNetworkFailureAreHandled() throws Exception {
+        for (Exception failure :
+                new Exception[] {
+                    new HttpTimeoutException("timed out"), new java.io.IOException("unavailable")
+                }) {
             var service = withResponse(200, "{}");
             HttpClient client = (HttpClient) ReflectionTestUtils.getField(service, "client");
-            when(client.send(any(HttpRequest.class), org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any())).thenThrow(failure);
-            var error = assertThrows(BizException.class, () -> service.chat("虚构问题", List.of(), List.of()));
-            assertTrue(error.getMessage().contains(failure instanceof HttpTimeoutException ? "超时" : "连接失败"));
+            when(client.send(
+                            any(HttpRequest.class),
+                            org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
+                    .thenThrow(failure);
+            var error =
+                    assertThrows(
+                            BizException.class, () -> service.chat("虚构问题", List.of(), List.of()));
+            assertTrue(
+                    error.getMessage()
+                            .contains(failure instanceof HttpTimeoutException ? "超时" : "连接失败"));
         }
     }
-    @Test void emptyAndMalformedProviderAnswersDoNotBecomeSuccessfulMessages() throws Exception {
-        for (String body : new String[] {"{}", "{\"choices\":[{\"message\":{\"content\":\"bad json\"}}]}"}) {
+
+    /** 验证空结果和错误格式不会当成功回复。 */
+    @Test
+    void emptyAndMalformedProviderAnswersDoNotBecomeSuccessfulMessages() throws Exception {
+        for (String body :
+                new String[] {"{}", "{\"choices\":[{\"message\":{\"content\":\"bad json\"}}]}"}) {
             var service = withResponse(200, body);
             assertThrows(BizException.class, () -> service.chat("虚构问题", List.of(), List.of()));
         }
     }
-    @Test void promptRequiresEvidenceForPetHairAndAreaClaims() throws Exception {
-        var mapper=new ObjectMapper();String answer=mapper.writeValueAsString(java.util.Map.of("answer","测试回复","recommendedProductIds",List.of()));
-        var service=withResponse(200,mapper.writeValueAsString(java.util.Map.of("choices",List.of(java.util.Map.of("message",java.util.Map.of("content",answer))))));
-        service.chat("虚构选购问题",List.of(),List.of());
-        HttpClient client=(HttpClient)ReflectionTestUtils.getField(service,"client");
-        var captured=org.mockito.ArgumentCaptor.forClass(HttpRequest.class);
-        verify(client).send(captured.capture(),org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any());
-        var bytes=new java.io.ByteArrayOutputStream();var done=new java.util.concurrent.CompletableFuture<String>();
-        captured.getValue().bodyPublisher().orElseThrow().subscribe(new java.util.concurrent.Flow.Subscriber<java.nio.ByteBuffer>(){
-            public void onSubscribe(java.util.concurrent.Flow.Subscription s){s.request(Long.MAX_VALUE);}
-            public void onNext(java.nio.ByteBuffer b){byte[] a=new byte[b.remaining()];b.get(a);bytes.writeBytes(a);}
-            public void onError(Throwable t){done.completeExceptionally(t);}
-            public void onComplete(){done.complete(bytes.toString(java.nio.charset.StandardCharsets.UTF_8));}
-        });
-        String system=mapper.readTree(done.get(2,java.util.concurrent.TimeUnit.SECONDS)).path("messages").get(0).path("content").asText();
-        assertTrue(system.contains("禁止仅按标称吸力"));assertTrue(system.contains("禁止仅凭续航分钟数"));assertTrue(system.contains("推测必须标为待核实"));
-    }
-    @Test void structuredAnswerIsParsedThroughTransport() throws Exception {
+
+    /** 验证涉及宠物毛发及面积时提示词要求证据。 */
+    @Test
+    void promptRequiresEvidenceForPetHairAndAreaClaims() throws Exception {
         var mapper = new ObjectMapper();
-        String content = mapper.writeValueAsString(java.util.Map.of("answer", "虚构推荐说明", "recommendedProductIds", List.of(1)));
-        String body = mapper.writeValueAsString(java.util.Map.of("choices", List.of(java.util.Map.of("message", java.util.Map.of("content", content)))));
+        String answer =
+                mapper.writeValueAsString(
+                        java.util.Map.of("answer", "测试回复", "recommendedProductIds", List.of()));
+        var service =
+                withResponse(
+                        200,
+                        mapper.writeValueAsString(
+                                java.util.Map.of(
+                                        "choices",
+                                        List.of(
+                                                java.util.Map.of(
+                                                        "message",
+                                                        java.util.Map.of("content", answer))))));
+        service.chat("虚构选购问题", List.of(), List.of());
+        HttpClient client = (HttpClient) ReflectionTestUtils.getField(service, "client");
+        var captured = org.mockito.ArgumentCaptor.forClass(HttpRequest.class);
+        verify(client)
+                .send(
+                        captured.capture(),
+                        org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any());
+        var bytes = new java.io.ByteArrayOutputStream();
+        var done = new java.util.concurrent.CompletableFuture<String>();
+        captured.getValue()
+                .bodyPublisher()
+                .orElseThrow()
+                .subscribe(
+                        new java.util.concurrent.Flow.Subscriber<java.nio.ByteBuffer>() {
+                            /** 订阅请求内容发布流。 */
+                            public void onSubscribe(java.util.concurrent.Flow.Subscription s) {
+                                s.request(Long.MAX_VALUE);
+                            }
+
+                            /** 收集一段请求数据。 */
+                            public void onNext(java.nio.ByteBuffer b) {
+                                byte[] a = new byte[b.remaining()];
+                                b.get(a);
+                                bytes.writeBytes(a);
+                            }
+
+                            /** 报告模拟传输错误。 */
+                            public void onError(Throwable t) {
+                                done.completeExceptionally(t);
+                            }
+
+                            /** 完成请求体读取。 */
+                            public void onComplete() {
+                                done.complete(
+                                        bytes.toString(java.nio.charset.StandardCharsets.UTF_8));
+                            }
+                        });
+        String system =
+                mapper.readTree(done.get(2, java.util.concurrent.TimeUnit.SECONDS))
+                        .path("messages")
+                        .get(0)
+                        .path("content")
+                        .asText();
+        assertTrue(system.contains("禁止仅按标称吸力"));
+        assertTrue(system.contains("禁止仅凭续航分钟数"));
+        assertTrue(system.contains("推测必须标为待核实"));
+    }
+
+    /** 验证经过模拟传输的结构化响应可解析。 */
+    @Test
+    void structuredAnswerIsParsedThroughTransport() throws Exception {
+        var mapper = new ObjectMapper();
+        String content =
+                mapper.writeValueAsString(
+                        java.util.Map.of("answer", "虚构推荐说明", "recommendedProductIds", List.of(1)));
+        String body =
+                mapper.writeValueAsString(
+                        java.util.Map.of(
+                                "choices",
+                                List.of(
+                                        java.util.Map.of(
+                                                "message", java.util.Map.of("content", content)))));
         var reply = withResponse(200, body).chat("虚构问题", List.of(), List.of());
-        assertEquals("虚构推荐说明", reply.answer()); assertEquals(List.of(1L), reply.productIds());
+        assertEquals("虚构推荐说明", reply.answer());
+        assertEquals(List.of(1L), reply.productIds());
     }
 }

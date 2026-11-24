@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 const props = defineProps<{ content: string }>();
+/** 把回答拆成便于展示的文本行。 */
 const lines = computed(() =>
   props.content
     .split("\n")
@@ -11,6 +12,7 @@ const lines = computed(() =>
       text: line.replace(/^#{1,6}\s+|^\s*[-*]\s+/, ""),
     })),
 );
+/** 拆解行内标记并生成安全展示片段。 */
 function segments(text: string) {
   return text
     .split(/(\*\*[^*]+\*\*)/g)
