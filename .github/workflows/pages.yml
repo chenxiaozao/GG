@@ -14,6 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Read GitHub Pages site address
+        id: pages
+        uses: actions/configure-pages@v5
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -22,14 +25,14 @@ jobs:
       - name: Validate optional HTTPS backend and Pages CORS
         env:
           API_URL: ${{ vars.API_BASE_URL }}
-          FRONTEND_ORIGIN: https://${{ github.repository_owner }}.github.io
+          FRONTEND_ORIGIN: https://${{ steps.pages.outputs.host }}
         run: node web/scripts/validate-public-backend.mjs --check-health
       - run: npm ci
         working-directory: web
       - run: npm run build
         working-directory: web
         env:
-          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}/
           VITE_ROUTER_MODE: hash
           VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
           VITE_OFFLINE_ONLY: ${{ vars.API_BASE_URL == '' && 'true' || 'false' }}
