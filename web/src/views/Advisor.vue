@@ -67,6 +67,10 @@ function savePlanDraft() {
   router.push("/profile#plans");
 }
 const chatLoading = ref(false);
+const historyLoading = ref(false);
+const historyNotice = ref("");
+const replyProvider = ref("");
+const previousQuestion = ref("");
 const advisorMode = ref<"chat" | "form">("chat");
 const prompts = [
   "家里有猫，90 平米，预算 5000 元，想选省心的扫拖机器人",
@@ -106,6 +110,43 @@ const chatMessages = ref<
       "你可以直接告诉我家庭环境、预算和最在意的功能，我会在商城已有商品中给出选购建议。",
   },
 ]);
+const welcomeMessage = chatMessages.value[0]!;
+
+/** 从账号读取最近咨询；历史只显示文本，不把旧价格当成实时商品卡。 */
+async function loadChatHistory() {
+  if (!localStorage.getItem("token")) return;
+  historyLoading.value = true;
+  historyNotice.value = "";
+  try {
+    const messages = (await api.get(
+      "/advisor/history",
+    )) as typeof chatMessages.value;
+    chatMessages.value = messages.length ? messages : [welcomeMessage];
+  } catch {
+    historyNotice.value = "咨询记录暂时无法读取，可重试。";
+  } finally {
+    historyLoading.value = false;
+  }
+}
+
+/** 删除账号的咨询记录，不删除浏览历史或画像。 */
+async function clearChatHistory() {
+  if (!window.confirm("清空本账号的选购咨询？商品浏览记录和偏好不受影响。"))
+    return;
+  historyLoading.value = true;
+  historyNotice.value = "";
+  try {
+    await api.delete("/advisor/history");
+    chatMessages.value = [welcomeMessage];
+    replyProvider.value = "";
+    previousQuestion.value = "";
+    aiConnected.value = false;
+  } catch {
+    historyNotice.value = "咨询记录未清空，请重试。";
+  } finally {
+    historyLoading.value = false;
+  }
+}
 const scenes = [
   ["cleaning", "地面清洁", "扫拖与日常维护"],
   ["window", "窗面清洁", "玻璃与高层窗面"],
@@ -149,9 +190,9 @@ function formatPrice(value: unknown) {
   });
 }
 /** 把原样的问题、近期消息和候选编号发给 Java；不在浏览器调用模型或判断咨询领域。 */
-async function sendChat() {
-  const question = chatInput.value.trim();
-  if (!question || chatLoading.value) return;
+async function sendChat(recall?: string) {
+  const question = recall || chatInput.value.trim();
+  if (!question || chatLoading.value || historyLoading.value) return;
   if (!localStorage.getItem("token")) {
     sessionStorage.setItem("robotmall-advisor-entry", question);
     await router.push({ path: "/login", query: { redirect: "/advisor" } });
@@ -163,7 +204,7 @@ async function sendChat() {
     .slice(-6)
     .map(({ role, content }) => ({ role, content }));
   chatMessages.value.push({ role: "user", content: question });
-  chatInput.value = "";
+  if (!recall) chatInput.value = "";
   chatLoading.value = true;
   try {
     const response: any = await api.post(
@@ -172,6 +213,8 @@ async function sendChat() {
       { timeout: 45000 },
     );
     aiConnected.value = response.provider === "DeepSeek";
+    replyProvider.value = response.provider;
+    previousQuestion.value = response.previousQuestion || "";
     chatMessages.value.push({
       role: "assistant",
       content: response.answer,
@@ -206,6 +249,7 @@ watch(
   },
 );
 onMounted(async () => {
+  await loadChatHistory();
   try {
     const ids = JSON.parse(
       sessionStorage.getItem("robotmall-advisor-context") || "[]",
@@ -437,10 +481,53 @@ onMounted(async () => {
             ? "DeepSeek 已连接"
             : aiConfigured
               ? "DeepSeek 已配置"
-              : "待配置 Token"
+              : "规则推荐可用"
         }}</b>
       </div>
       <div class="advisor-chat card">
+        <div
+          v-if="!historyLoading && chatMessages.some((m) => m.role === 'user')"
+          class="advisor-chat-note"
+        >
+          <button
+            class="btn secondary"
+            :disabled="chatLoading"
+            @click="sendChat('我上次问了什么')"
+          >
+            找回上次咨询
+          </button>
+          <button
+            class="btn secondary"
+            :disabled="chatLoading"
+            @click="clearChatHistory"
+          >
+            清空咨询记录
+          </button>
+        </div>
+        <p v-if="historyLoading" class="advisor-chat-note" role="status">
+          正在处理咨询记录…
+        </p>
+        <p v-if="historyNotice" class="advisor-chat-note" role="status">
+          {{ historyNotice }}
+          <button
+            class="btn secondary"
+            :disabled="chatLoading"
+            @click="loadChatHistory"
+          >
+            重新读取
+          </button>
+        </p>
+        <p v-if="replyProvider" class="advisor-chat-note">
+          本轮来源：{{ replyProvider }}
+          <button
+            v-if="previousQuestion"
+            class="btn secondary"
+            :disabled="chatLoading"
+            @click="usePrompt(previousQuestion)"
+          >
+            把上次问题带回输入框
+          </button>
+        </p>
         <div
           ref="chatRegion"
           class="advisor-chat-messages"
@@ -525,7 +612,7 @@ onMounted(async () => {
             {{ prompt }}<UiIcon name="arrow" :size="16" />
           </button>
         </div>
-        <form class="advisor-chat-input" @submit.prevent="sendChat">
+        <form class="advisor-chat-input" @submit.prevent="sendChat()">
           <textarea
             class="input"
             rows="2"
@@ -536,17 +623,21 @@ onMounted(async () => {
             @keydown.meta.enter.prevent="!$event.isComposing && sendChat()"
             placeholder="例如：90 平米、有猫、木地板为主，预算 5000 元，更在意毛发清理…"
           ></textarea
-          ><button class="btn" :disabled="chatLoading || !chatInput.trim()">
+          ><button
+            class="btn"
+            :disabled="chatLoading || historyLoading || !chatInput.trim()"
+          >
             {{ chatLoading ? "正在回答…" : "发送咨询"
             }}<UiIcon name="arrow" :size="17" />
           </button>
         </form>
         <p class="advisor-chat-note">
-          本助手仅用于机器人选购与商城使用，不处理无关作业。有效咨询会发送至
-          DeepSeek，请勿输入手机号等隐私；回答可能有误，请核对参数依据。本系统的选购偏好默认不收集，可在<router-link
+          登录后可跨设备找回最近 20
+          轮有效选购咨询，也可清空。需要模型解释时才发送必要上下文给
+          DeepSeek，请勿输入隐私。明确表达的选购偏好可在<router-link
             to="/profile#preferences"
             >我的选购偏好</router-link
-          >中自行开启、纠正或删除；档案开关不影响你主动发出的 AI 请求。
+          >中纠正或删除。管理员可查看偏好摘要，不查看聊天正文。
         </p>
       </div>
     </section>

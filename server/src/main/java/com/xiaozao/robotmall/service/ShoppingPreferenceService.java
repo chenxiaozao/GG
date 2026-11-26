@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 import java.time.LocalDateTime;
 
-/** 控制购物画像授权和结构化偏好保存。 */
+/** 保存结构化选购偏好，供本人及有权限的管理员查看。 */
 @Service
 public class ShoppingPreferenceService {
     private final ShoppingPreferenceRepository profiles;
@@ -36,19 +36,14 @@ public class ShoppingPreferenceService {
                         });
     }
 
-    /** 按当前访问角色和共享授权返回画像内容。 */
-    public Map<String, Object> view(long userId, boolean admin) {
+    /** 返回结构化画像，不返回咨询记录。 */
+    public Map<String, Object> view(long userId) {
         var p = profile(userId);
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("collectionEnabled", p.collectionEnabled);
-        out.put("adminSharing", p.adminSharing);
         out.put("confirmed", p.confirmed);
         out.put("updatedAt", p.updatedAt);
-        out.put("source", "仅限用户明确表达的选购需求，不保存原始聊天，不推断身份/收入/健康");
-        out.put(
-                "preferences",
-                (!admin || p.collectionEnabled && p.adminSharing) ? read(p) : Map.of());
-        out.put("visible", !admin || p.collectionEnabled && p.adminSharing);
+        out.put("source", "画像仅记录明确表达的选购需求，不含聊天正文，不推断身份、收入或健康");
+        out.put("preferences", read(p));
         return out;
     }
 
@@ -73,29 +68,11 @@ public class ShoppingPreferenceService {
         }
     }
 
-    /** 修改采集、共享授权，关闭采集时清空画像。 */
-    @Transactional
-    public Map<String, Object> consent(long userId, boolean enabled, boolean sharing) {
-        users.findForUpdate(userId).orElseThrow(() -> new BizException("用户不存在"));
-        var p = profile(userId);
-        p.collectionEnabled = enabled;
-        p.adminSharing = enabled && sharing;
-        p.consentAt = LocalDateTime.now();
-        if (!enabled) {
-            p.confirmed = false;
-            p.preferencesJson = "{}";
-        }
-        p.updatedAt = LocalDateTime.now();
-        profiles.save(p);
-        return view(userId, false);
-    }
-
     /** 从本轮明确需求提取偏好，不保存原始聊天。 */
     @Transactional
     public void capture(long userId, RecommendationEngine.Need need, String question) {
         users.findForUpdate(userId).orElseThrow(() -> new BizException("用户不存在"));
         var p = profile(userId);
-        if (!p.collectionEnabled) return;
         // User-confirmed preferences are not silently overwritten by a later conversation.
         if (p.confirmed) return;
         Map<String, Object> data = read(p);
@@ -108,6 +85,7 @@ public class ShoppingPreferenceService {
         if (question.matches("(?s).*(家里有猫|家里有狗|家中养猫|家中养狗|家里养宠).*"))
             data.put("scenario", "养宠清洁（用户明确表达，待确认）");
         if (question.matches("(?s).*(给孩子|孩子学习|孩子入门).*")) data.put("scenario", "儿童学习选购（用户明确表达，待确认）");
+        if (data.isEmpty() || data.equals(read(p))) return;
         data.put("evidenceSource", "用户选购咨询中明确表达；未保存原文");
         write(p, data);
     }
@@ -117,7 +95,6 @@ public class ShoppingPreferenceService {
     public Map<String, Object> confirm(long userId, Map<String, Object> body) {
         users.findForUpdate(userId).orElseThrow(() -> new BizException("用户不存在"));
         var p = profile(userId);
-        if (!p.collectionEnabled) throw new BizException("请先开启偏好档案");
         String category = Objects.toString(body.get("category"), "");
         if (!category.isEmpty() && !RecommendationEngine.SCENES.containsValue(category))
             throw new BizException("类别无效");
@@ -156,7 +133,7 @@ public class ShoppingPreferenceService {
         data.put("evidenceSource", "用户自行编辑并确认");
         p.confirmed = true;
         write(p, data);
-        return view(userId, false);
+        return view(userId);
     }
 
     /** 彻底删除本人购物画像。 */

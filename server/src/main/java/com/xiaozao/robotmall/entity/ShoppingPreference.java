@@ -3,7 +3,7 @@ package com.xiaozao.robotmall.entity;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
-/** 表示购物画像及授权。 */
+/** 表示结构化选购画像；旧授权列仅保留数据库兼容。 */
 @Entity
 public class ShoppingPreference {
     @Id public Long userId;

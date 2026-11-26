@@ -10,7 +10,7 @@ import java.util.regex.*;
 /** Deterministic requirements and evidence, used by both recommendation entry points. */
 /** 提取结构化需求、筛选目录并为候选打分。 */
 public class RecommendationEngine {
-    public static final String VERSION = "rules-2026-11-05";
+    public static final String VERSION = "rules-2026-11-26";
     public static final Map<String, String> SCENES =
             Map.ofEntries(
                     Map.entry("cleaning", "地面清洁"),
@@ -104,7 +104,7 @@ public class RecommendationEngine {
                     Map.entry("割草|庭院|泳池", "庭院与泳池"),
                     Map.entry("陪伴|宠物机器人", "陪伴娱乐"),
                     Map.entry("无人机|航拍|飞行电池|air\\s*3s", "航拍无人机"),
-                    Map.entry("编程|教育|孩子", "教育编程"),
+                    Map.entry("编程|教育|scratch|stem", "教育编程"),
                     Map.entry("机器狗|四足|go2", "四足机器人"),
                     Map.entry("人形|双足", "人形机器人"),
                     Map.entry("送餐|迎宾|商用", "商用服务"));
@@ -121,11 +121,20 @@ public class RecommendationEngine {
         String text = question.toLowerCase(Locale.ROOT),
                 all = (previous + "\n" + question).toLowerCase(Locale.ROOT);
         Set<String> selected = categories(text);
-        if (selected.isEmpty()) selected = categories(previous.toLowerCase(Locale.ROOT));
+        Set<String> historicalCategories = categories(previous.toLowerCase(Locale.ROOT));
+        boolean newCategory =
+                !selected.isEmpty()
+                        && !historicalCategories.isEmpty()
+                        && Collections.disjoint(selected, historicalCategories);
+        if (selected.isEmpty()) selected = historicalCategories;
+        if (newCategory) all = text;
         String category = selected.size() == 1 ? selected.iterator().next() : null;
         boolean unlimited = text.contains("预算不限") || text.contains("不限预算");
-        BigDecimal budget = readBudget(text);
-        if (budget == null && !unlimited) budget = readBudget(previous);
+        BigDecimal statedBudget = readBudget(text);
+        if (statedBudget == null && !previous.isBlank() && text.matches("\\d{2,7}\\s*(?:元|块钱?)?"))
+            statedBudget = readBudget("预算" + text);
+        BigDecimal budget = statedBudget;
+        if (budget == null && !unlimited && !newCategory) budget = readBudget(previous);
         List<String> required = new ArrayList<>();
         for (String feature : FEATURES.keySet()) {
             String expression = "(?:必须|需要|要有|支持|必需|一定要)[^。！？\\n]{0,8}" + Pattern.quote(feature);
@@ -150,8 +159,11 @@ public class RecommendationEngine {
                 if (!remainder.isBlank() && !numeric) required.add("待确认硬条件：" + part);
             }
         }
-        if (!unlimited && text.contains("预算") && readBudget(text) == null)
-            required.add("待确认预算：请用数字和元/千/万表达");
+        if (!unlimited
+                && statedBudget == null
+                && text.matches("(?s).*(?:预算|不超过|上限|最多).{0,8}[0-9零〇一二两三四五六七八九十百千万几].*")
+                && !text.matches("(?s).*(?:不超过|最多)\\s*\\d+\\s*(?:分钟|小时).*"))
+            required.add("待确认预算：请告诉我一个明确的最高金额，例如 3000 元");
         Matcher endurance =
                 Pattern.compile("(?:续航)[^。！？\\n]{0,6}(?:至少|不低于|最低)\\s*(\\d+)\\s*分钟").matcher(all);
         int minutes = 0;
@@ -188,22 +200,67 @@ public class RecommendationEngine {
 
     /** 提取可识别的数字金额并统一为元。 */
     private BigDecimal readBudget(String text) {
+        if (Pattern.compile(
+                        "(?:\\d+(?:\\.\\d+)?|[一二两三四五六七八九][千万]?)\\s*(?:元|块钱?)?\\s*(?:到|至|[-~～—])\\s*[0-9一二两三四五六七八九]|[一二两三四五六七八九]{2}[千万]")
+                .matcher(text)
+                .find()) return null;
         Matcher matcher =
                 Pattern.compile(
-                                "(?:预算|不超过|最多|上限)\\s*(?:改为|调整为|增加到|降低到|约为|为|是|:|：)?\\s*(\\d+(?:\\.\\d+)?)\\s*(万|千|[kK])?")
+                                "(?:预算|不超过|最多|上限)\\s*(?:改为|调整为|增加到|降低到|约为|大约|大概|约|为|是|在|:|：)?\\s*(\\d+(?:\\.\\d+)?|[零〇一二两三四五六七八九十百千万]+)\\s*(万|千|[kK])?")
                         .matcher(text);
         BigDecimal value = null;
         while (matcher.find()) {
-            value = new BigDecimal(matcher.group(1));
+            if (text.substring(matcher.end()).matches("(?s)^\\s*(?:分钟|小时|年|岁).*")) continue;
+            value = budgetNumber(matcher.group(1));
+            if (value == null) continue;
             String unit = matcher.group(2);
             if ("万".equals(unit)) value = value.multiply(BigDecimal.valueOf(10000));
             else if (unit != null) value = value.multiply(BigDecimal.valueOf(1000));
         }
         if (value == null) {
-            matcher = Pattern.compile("(\\d+(?:\\.\\d+)?)\\s*元?以内").matcher(text);
-            while (matcher.find()) value = new BigDecimal(matcher.group(1));
+            matcher =
+                    Pattern.compile("(\\d+(?:\\.\\d+)?|[零〇一二两三四五六七八九十百千万]+)\\s*(?:元|块钱?)?以内")
+                            .matcher(text);
+            while (matcher.find()) value = budgetNumber(matcher.group(1));
         }
         return value != null && value.signum() > 0 ? value : null;
+    }
+
+    /** 把明确的阿拉伯数字或中文金额转换为元；不猜测口语省略的位值。 */
+    private BigDecimal budgetNumber(String value) {
+        if (value.matches("\\d+(?:\\.\\d+)?")) return new BigDecimal(value);
+        long total = 0, section = 0;
+        int digit = 0, lastUnit = 10000;
+        boolean pending = false;
+        for (char c : value.toCharArray()) {
+            int number = "零一二三四五六七八九".indexOf(c);
+            if (c == '〇') number = 0;
+            if (c == '两') number = 2;
+            if (number >= 0) {
+                if (pending && digit != 0) return null;
+                digit = number;
+                pending = true;
+                continue;
+            }
+            if (c == '万') {
+                if (total > 0 || section + digit == 0) return null;
+                total = (section + digit) * 10000;
+                section = 0;
+                lastUnit = 10000;
+            } else {
+                int unit = c == '千' ? 1000 : c == '百' ? 100 : 10;
+                if (unit >= lastUnit || (!pending && !(unit == 10 && section == 0))) return null;
+                section += (pending ? digit : 1) * unit;
+                lastUnit = unit;
+            }
+            digit = 0;
+            pending = false;
+        }
+        if (pending
+                && digit > 0
+                && (lastUnit >= 100 && section + total > 0)
+                && !value.matches(".*[零〇][一二两三四五六七八九]$")) return null;
+        return BigDecimal.valueOf(total + section + digit);
     }
 
     /** Evidence comes from parameter entries, never inferred from a brand or model name. */

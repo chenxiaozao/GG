@@ -23,7 +23,7 @@ const preferenceLabels: Record<string, string> = {
   evidenceSource: "信息来源",
 };
 const actionLabels: Record<string, string> = {
-  VIEW_PREFERENCE: "查看偏好授权",
+  VIEW_PREFERENCE: "查看选购偏好",
   RESET_PASSWORD: "重置密码",
   UPDATE_UNVERIFIED_PHONE: "维护未验证联系方式",
 };
@@ -37,7 +37,7 @@ async function loadAudit() {
     message.value = e.message;
   }
 }
-/** 按授权读取选购画像。 */
+/** 读取结构化画像并由服务端记录查看日志。 */
 async function viewProfile() {
   busy.value = true;
   message.value = "";
@@ -185,15 +185,16 @@ onBeforeUnmount(() => {
       </section>
       <section>
         <h3>选购偏好档案</h3>
-        <p class="muted">
-          只有用户主动允许管理员查看才展示，不开放聊天原文。查看行为也会记录。
-        </p>
+        <p class="muted">仅查看结构化偏好，不开放聊天正文。查看行为会记录。</p>
         <button class="btn secondary" :disabled="busy" @click="viewProfile">
-          按用户授权查看
+          查看选购偏好
         </button>
         <template v-if="profile"
-          ><p v-if="!profile.visible" class="empty">
-            用户未授权查看，档案内容不会返回。
+          ><p
+            v-if="!Object.keys(profile.preferences || {}).length"
+            class="empty"
+          >
+            暂无选购偏好。
           </p>
           <template v-else
             ><p>

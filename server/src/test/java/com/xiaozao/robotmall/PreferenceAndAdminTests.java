@@ -13,7 +13,7 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 
-/** 验证画像授权、范围拒绝和管理员维护。 */
+/** 验证画像、选购对话、范围拒绝和管理员维护。 */
 @SpringBootTest(
         properties = {
             "spring.datasource.url=jdbc:h2:mem:privacy_test;MODE=MySQL;DB_CLOSE_DELAY=-1",
@@ -91,30 +91,19 @@ class PreferenceAndAdminTests {
         assertFalse(AdvisorScope.redactContacts("buyer@example.org").contains("buyer@example.org"));
     }
 
-    /** 验证画像授权、提取、共享、纠正和删除。 */
+    /** 验证画像自动提取、管理员可见、用户纠正和删除。 */
     @Test
-    void consentCaptureSharingCorrectionAndDeletion() throws Exception {
+    void captureAdminVisibilityCorrectionAndDeletion() throws Exception {
         var buyer = auth.register("privacybuyer", "PrivacyTests123!", "隐私测试");
         String token = login(buyer.username, "PrivacyTests123!");
         String admin = login("admin", "admin123");
-        assertFalse(
-                call("GET", "/api/profile/preferences", token, null, 200)
-                        .path("collectionEnabled")
-                        .asBoolean());
-        call("POST", "/api/advisor/chat", token, Map.of("question", "扫地机器人预算4000，家里有猫"), 400);
         assertFalse(preferences.existsById(buyer.id));
-        call(
-                "PUT",
-                "/api/profile/preferences/consent",
-                token,
-                Map.of("enabled", true, "adminSharing", false),
-                200);
         call(
                 "POST",
                 "/api/advisor/chat",
                 token,
                 Map.of("question", "扫地机器人预算4000，必须自动集尘，家里有猫，我的电话13800138000"),
-                400);
+                200);
         var own = call("GET", "/api/profile/preferences", token, null, 200);
         assertEquals(4000, own.path("preferences").path("budget").asInt());
         assertFalse(
@@ -123,21 +112,10 @@ class PreferenceAndAdminTests {
                         .orElseThrow()
                         .preferencesJson
                         .contains("13800138000"));
-        var hidden =
+        var visible =
                 call("GET", "/api/admin/accounts/" + buyer.id + "/preferences", admin, null, 200);
-        assertFalse(hidden.path("visible").asBoolean());
-        assertTrue(hidden.path("preferences").isEmpty());
+        assertEquals(4000, visible.path("preferences").path("budget").asInt());
         call("GET", "/api/admin/accounts/" + buyer.id + "/preferences", token, null, 403);
-        call(
-                "PUT",
-                "/api/profile/preferences/consent",
-                token,
-                Map.of("enabled", true, "adminSharing", true),
-                200);
-        assertTrue(
-                call("GET", "/api/admin/accounts/" + buyer.id + "/preferences", admin, null, 200)
-                        .path("visible")
-                        .asBoolean());
         call(
                 "PUT",
                 "/api/profile/preferences",
@@ -152,7 +130,7 @@ class PreferenceAndAdminTests {
                         "scenario",
                         "户外航拍"),
                 200);
-        call("POST", "/api/advisor/chat", token, Map.of("question", "扫地机器人预算5000"), 400);
+        call("POST", "/api/advisor/chat", token, Map.of("question", "扫地机器人预算5000"), 200);
         assertEquals(
                 "航拍无人机",
                 call("GET", "/api/profile/preferences", token, null, 200)
@@ -161,10 +139,89 @@ class PreferenceAndAdminTests {
                         .asText());
         call("DELETE", "/api/profile/preferences", token, null, 200);
         assertFalse(preferences.existsById(buyer.id));
-        assertFalse(
+        assertTrue(
                 call("GET", "/api/admin/accounts/" + buyer.id + "/preferences", admin, null, 200)
-                        .path("visible")
+                        .path("preferences")
+                        .isEmpty());
+    }
+
+    /** 验证无需模型即可筛选，保存的咨询支持重新登录、找回、隔离和清空。 */
+    @Test
+    void ruleAdviceAndConversationSurviveReloginWithoutModel() throws Exception {
+        String password = "ConversationTester123!";
+        var buyer = auth.register("conversationbuyer", password, "顾问测试");
+        var other = auth.register("conversationother", password, "另一账号");
+        String token = login(buyer.username, password);
+        String otherToken = login(other.username, password);
+        String historyPath = "/api/advisor/history";
+        String chatPath = "/api/advisor/chat";
+        int before = call("GET", "/api/advisor/quota", token, null, 200).path("remaining").asInt();
+        var open = call("POST", chatPath, token, Map.of("question", "想给孩子买入门编程机器人"), 200);
+        assertEquals("规则推荐", open.path("provider").asText());
+        assertFalse(open.path("products").isEmpty());
+        assertTrue(open.path("answer").asText().contains("预算最高是多少"));
+        var vague = call("POST", chatPath, token, Map.of("question", "编程机器人预算在三四千元"), 200);
+        assertEquals("规则追问", vague.path("provider").asText());
+        assertTrue(vague.path("products").isEmpty());
+        var clear =
+                call(
+                        "POST",
+                        chatPath,
+                        token,
+                        Map.of("question", "想找孩子入门编程的机器人，预算在三千块钱，电话13800138000"),
+                        200);
+        assertEquals(3000, clear.path("validatedRequirements").path("budget").asInt());
+        assertFalse(clear.path("products").isEmpty());
+        long id = clear.path("products").get(0).path("id").asLong();
+        assertEquals(
+                id,
+                call(
+                                "POST",
+                                chatPath,
+                                token,
+                                Map.of(
+                                        "question",
+                                        "这几款哪个适合小朋友入门？",
+                                        "history",
+                                        List.of(),
+                                        "contextProductIds",
+                                        List.of(id)),
+                                200)
+                        .path("products")
+                        .get(0)
+                        .path("id")
+                        .asLong());
+        assertTrue(
+                call(
+                                "POST",
+                                chatPath,
+                                token,
+                                Map.of(
+                                        "question",
+                                        "有3台编程机器人，每台4个轮子，请列式解题",
+                                        "contextProductIds",
+                                        List.of(id)),
+                                200)
+                        .path("scopeRestricted")
                         .asBoolean());
+        assertEquals(
+                before,
+                call("GET", "/api/advisor/quota", token, null, 200).path("remaining").asInt());
+        call("GET", historyPath, null, null, 401);
+        assertTrue(call("GET", historyPath, otherToken, null, 200).isEmpty());
+        token = login(buyer.username, password);
+        var history = call("GET", historyPath, token, null, 200);
+        assertEquals(8, history.size());
+        assertFalse(history.toString().contains("13800138000"));
+        assertTrue(
+                call("POST", chatPath, token, Map.of("question", "我上次问了什么"), 200)
+                        .path("answer")
+                        .asText()
+                        .contains("这几款哪个适合小朋友入门"));
+        assertEquals(8, call("GET", historyPath, token, null, 200).size());
+        call("DELETE", historyPath, token, null, 200);
+        assertTrue(call("GET", historyPath, token, null, 200).isEmpty());
+        assertTrue(preferences.existsById(buyer.id));
     }
 
     /** 验证重置需二次鉴权且手机号未自动验证。 */

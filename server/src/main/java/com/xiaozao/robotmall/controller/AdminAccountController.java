@@ -109,19 +109,15 @@ public class AdminAccountController {
         return ApiResponse.ok(Map.of("message", "联系方式已更新，未短信验证，不是登录绑定"));
     }
 
-    /** 按授权读取购物画像并记录访问。 */
+    /** 仅允许管理员读取结构化画像，并记录访问。 */
     @GetMapping("/{id}/preferences")
     @Transactional
     public ApiResponse<?> preferences(
             @RequestHeader("X-Token") String token, @PathVariable long id) {
         User actor = admin(token);
         if (!users.existsById(id)) throw new BizException("账号不存在");
-        var result = preferences.view(id, true);
-        audit(
-                actor,
-                id,
-                "VIEW_PREFERENCE",
-                Boolean.TRUE.equals(result.get("visible")) ? "用户授权可见" : "用户未授权，未展示内容");
+        var result = preferences.view(id);
+        audit(actor, id, "VIEW_PREFERENCE", "管理员查看结构化选购偏好");
         return ApiResponse.ok(result);
     }
 

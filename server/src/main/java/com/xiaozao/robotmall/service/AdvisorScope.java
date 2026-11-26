@@ -27,6 +27,12 @@ public final class AdvisorScope {
 
     /** 按词语、句式及历史决定本地回应；无本地响应才继续选购流程。 */
     public static String localReply(String question, List<Map<String, String>> history) {
+        return localReply(question, history, false);
+    }
+
+    /** 已选商品可解释“这几款”等指代，但不能绕过明确的拒答规则。 */
+    public static String localReply(
+            String question, List<Map<String, String>> history, boolean hasCandidates) {
         String text = Objects.toString(question, "").trim();
         if (Pattern.compile(
                         "忽略.{0,8}(规则|指令|限制)|系统提示词|system prompt|股票推荐|诊断疾病",
@@ -34,7 +40,9 @@ public final class AdvisorScope {
                 .matcher(text)
                 .find()) return BOUNDARY;
         boolean task =
-                Pattern.compile("解方程|解数学|数学题|微积分|求导|积分题|证明题|写作文|做作业|写论文").matcher(text).find();
+                Pattern.compile("解方程|解数学|数学题|微积分|求导|积分题|证明题|写作文|做作业|写论文|列式|解题|计算题")
+                        .matcher(text)
+                        .find();
         boolean shopping =
                 Pattern.compile("买|选购|推荐.{0,8}机器人|选.{0,6}机器人|哪款|哪种|有没有.{0,8}机器人")
                         .matcher(text)
@@ -59,7 +67,7 @@ public final class AdvisorScope {
             return "你好，我是机器人选购助手。想解决什么问题？可以从用途、预算或关注的型号开始。";
         boolean followup =
                 Pattern.compile(
-                                "便宜|贵|省心|哪款|为什么|区别|这些|那个|还有|可以吗|支持|能否|有没有|怎么样|多重|尺寸|再推荐|换一款|更轻|更小|多久|好用|不需要|必须|至少|允许|不允许")
+                                "便宜|贵|省心|哪款|哪个|为什么|区别|这些|这几款|它们|那个|还有|可以吗|支持|能否|有没有|怎么样|多重|尺寸|再推荐|换一款|更轻|更小|多久|好用|不需要|必须|至少|允许|不允许")
                         .matcher(text)
                         .find();
         boolean relevantHistory =
@@ -70,7 +78,8 @@ public final class AdvisorScope {
                                         row ->
                                                 DOMAIN.matcher(row.getOrDefault("content", ""))
                                                         .find());
-        if (text.length() <= 80 && followup && relevantHistory) return null;
+        if (text.length() <= 80 && followup && (relevantHistory || hasCandidates)) return null;
+        if (relevantHistory && text.matches("\\d{2,7}\\s*(?:元|块钱?)?")) return null;
         return BOUNDARY;
     }
 }

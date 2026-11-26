@@ -5,7 +5,7 @@ import com.xiaozao.robotmall.common.ApiResponse;
 import com.xiaozao.robotmall.service.*;
 import java.util.Map;
 
-/** 提供购物画像的查询、授权、纠正与清除接口。 */
+/** 提供购物画像的查询、纠正与清除接口。 */
 @RestController
 @RequestMapping("/api/profile/preferences")
 public class PreferenceController {
@@ -21,18 +21,7 @@ public class PreferenceController {
     /** 读取本人画像。 */
     @GetMapping
     public ApiResponse<?> get(@RequestHeader("X-Token") String token) {
-        return ApiResponse.ok(preferences.view(auth.current(token).id, false));
-    }
-
-    /** 保存画像采集和管理员共享授权。 */
-    @PutMapping("/consent")
-    public ApiResponse<?> consent(
-            @RequestHeader("X-Token") String token, @RequestBody Map<String, Object> body) {
-        return ApiResponse.ok(
-                preferences.consent(
-                        auth.current(token).id,
-                        Boolean.TRUE.equals(body.get("enabled")),
-                        Boolean.TRUE.equals(body.get("adminSharing"))));
+        return ApiResponse.ok(preferences.view(auth.current(token).id));
     }
 
     /** 确认或纠正本人画像内容。 */
