@@ -10,7 +10,7 @@ import java.util.regex.*;
 /** Deterministic requirements and evidence, used by both recommendation entry points. */
 /** 提取结构化需求、筛选目录并为候选打分。 */
 public class RecommendationEngine {
-    public static final String VERSION = "rules-2026-11-26";
+    public static final String VERSION = "rules-2026-11-26-context";
     public static final Map<String, String> SCENES =
             Map.ofEntries(
                     Map.entry("cleaning", "地面清洁"),
@@ -43,7 +43,29 @@ public class RecommendationEngine {
         this.mapper = mapper;
     }
 
-    /** 保存分类、预算、必要功能、最低续航等筛选条件。 */
+    /** 区分没给预算、明确不限、已给金额和待澄清金额。 */
+    public enum BudgetStatus {
+        UNSPECIFIED,
+        UNLIMITED,
+        CAPPED,
+        NEEDS_CLARIFICATION
+    }
+
+    /** 表示影响地面清洁排序、但不会淘汰商品的选购侧重点。 */
+    public enum FloorFocus {
+        LARGE_AREA,
+        PET_HAIR,
+        QUIET
+    }
+
+    /** 庭院大类中的具体工作；未知时先询问，不混推两种设备。 */
+    public enum OutdoorTask {
+        UNSPECIFIED,
+        LAWN,
+        POOL
+    }
+
+    /** 保存分类、预算、硬条件和有依据才加分的使用场景。 */
     public record Need(
             String category,
             BigDecimal budget,
@@ -51,7 +73,12 @@ public class RecommendationEngine {
             List<String> requiredFeatures,
             int minEndurance,
             String priority,
-            boolean accessory) {}
+            boolean accessory,
+            BudgetStatus budgetStatus,
+            List<FloorFocus> floorFocus,
+            boolean floorAreaStated,
+            boolean floorSurfaceStated,
+            OutdoorTask outdoorTask) {}
 
     /** 校验表单字段并生成筛选条件。 */
     public Need structured(Map<String, Object> body) {
@@ -94,14 +121,19 @@ public class RecommendationEngine {
                 List.copyOf(required),
                 endurance,
                 priority,
-                false);
+                false,
+                BudgetStatus.CAPPED,
+                List.of(),
+                false,
+                false,
+                OutdoorTask.UNSPECIFIED);
     }
 
     private static final Map<String, String> CATEGORY_WORDS =
             Map.ofEntries(
                     Map.entry("扫地|扫拖|地板|地面清洁|拖地", "地面清洁"),
                     Map.entry("擦窗|窗户|玻璃", "擦窗机器人"),
-                    Map.entry("割草|庭院|泳池", "庭院与泳池"),
+                    Map.entry("割草|草坪|庭院|泳池|池底|池壁|水线", "庭院与泳池"),
                     Map.entry("陪伴|宠物机器人", "陪伴娱乐"),
                     Map.entry("无人机|航拍|飞行电池|air\\s*3s", "航拍无人机"),
                     Map.entry("编程|教育|scratch|stem", "教育编程"),
@@ -129,12 +161,13 @@ public class RecommendationEngine {
         if (selected.isEmpty()) selected = historicalCategories;
         if (newCategory) all = text;
         String category = selected.size() == 1 ? selected.iterator().next() : null;
-        boolean unlimited = text.contains("预算不限") || text.contains("不限预算");
-        BigDecimal statedBudget = readBudget(text);
-        if (statedBudget == null && !previous.isBlank() && text.matches("\\d{2,7}\\s*(?:元|块钱?)?"))
-            statedBudget = readBudget("预算" + text);
-        BigDecimal budget = statedBudget;
-        if (budget == null && !unlimited && !newCategory) budget = readBudget(previous);
+        BudgetChoice budget = budgetChoice(text, !previous.isBlank() && !newCategory);
+        if (budget.status() == BudgetStatus.UNSPECIFIED && !newCategory) {
+            for (String earlier : previous.split("\\R")) {
+                BudgetChoice candidate = budgetChoice(earlier, true);
+                if (candidate.status() != BudgetStatus.UNSPECIFIED) budget = candidate;
+            }
+        }
         List<String> required = new ArrayList<>();
         for (String feature : FEATURES.keySet()) {
             String expression = "(?:必须|需要|要有|支持|必需|一定要)[^。！？\\n]{0,8}" + Pattern.quote(feature);
@@ -159,10 +192,7 @@ public class RecommendationEngine {
                 if (!remainder.isBlank() && !numeric) required.add("待确认硬条件：" + part);
             }
         }
-        if (!unlimited
-                && statedBudget == null
-                && text.matches("(?s).*(?:预算|不超过|上限|最多).{0,8}[0-9零〇一二两三四五六七八九十百千万几].*")
-                && !text.matches("(?s).*(?:不超过|最多)\\s*\\d+\\s*(?:分钟|小时).*"))
+        if (budget.status() == BudgetStatus.NEEDS_CLARIFICATION)
             required.add("待确认预算：请告诉我一个明确的最高金额，例如 3000 元");
         Matcher endurance =
                 Pattern.compile("(?:续航)[^。！？\\n]{0,6}(?:至少|不低于|最低)\\s*(\\d+)\\s*分钟").matcher(all);
@@ -179,12 +209,63 @@ public class RecommendationEngine {
                         && !Pattern.compile("(?:不能|不接受|不允许|不要)超预算").matcher(text).find();
         return new Need(
                 category,
-                budget,
+                budget.amount(),
                 allow,
                 List.copyOf(required),
                 minutes,
                 all.contains("续航优先") ? "performance" : all.contains("性价比") ? "value" : "balanced",
-                Pattern.compile("配件|电池|耗材|滤网|拖布|桨叶").matcher(text).find());
+                Pattern.compile("配件|电池|耗材|滤网|拖布|桨叶").matcher(text).find(),
+                budget.status(),
+                "地面清洁".equals(category) ? floorFocus(all) : List.of(),
+                Pattern.compile("\\d+(?:\\.\\d+)?\\s*(?:平方米|平米|平方|㎡|平(?![方米]))")
+                        .matcher(all)
+                        .find(),
+                Pattern.compile("硬地板|木地板|地毯|瓷砖|地砖|地面材质").matcher(all).find(),
+                "庭院与泳池".equals(category) ? outdoorTask(text, all) : OutdoorTask.UNSPECIFIED);
+    }
+
+    private record BudgetChoice(BudgetStatus status, BigDecimal amount) {}
+
+    /** 只在需求明确区分割草与泳池时收窄候选。 */
+    private OutdoorTask outdoorTask(String current, String all) {
+        Pattern lawn = Pattern.compile("割草|草坪");
+        Pattern pool = Pattern.compile("泳池|池底|池壁|水线");
+        String scope = lawn.matcher(current).find() || pool.matcher(current).find() ? current : all;
+        boolean wantsLawn = lawn.matcher(scope).find();
+        boolean wantsPool = pool.matcher(scope).find();
+        if (wantsLawn == wantsPool) return OutdoorTask.UNSPECIFIED;
+        return wantsLawn ? OutdoorTask.LAWN : OutdoorTask.POOL;
+    }
+
+    /** 按单轮提取预算状态，避免明示不限后又读回旧预算。 */
+    private BudgetChoice budgetChoice(String text, boolean acceptShortTurn) {
+        BigDecimal amount = readBudget(text);
+        if (amount == null && acceptShortTurn && text.matches("\\d{2,7}\\s*(?:元|块钱?)?"))
+            amount = readBudget("预算" + text);
+        if (amount != null) return new BudgetChoice(BudgetStatus.CAPPED, amount);
+        if (Pattern.compile("预算\\s*(?:不设上限|不限|没有上限|无上限|无所谓|不限制)|不限预算|不用考虑价格").matcher(text).find())
+            return new BudgetChoice(BudgetStatus.UNLIMITED, null);
+        if (text.matches("(?s).*(?:预算|不超过|上限|最多).{0,8}[0-9零〇一二两三四五六七八九十百千万几].*")
+                && !text.matches("(?s).*(?:不超过|最多)\\s*\\d+\\s*(?:分钟|小时).*"))
+            return new BudgetChoice(BudgetStatus.NEEDS_CLARIFICATION, null);
+        return new BudgetChoice(BudgetStatus.UNSPECIFIED, null);
+    }
+
+    /** 从家庭清洁场景提取软偏好，优先使用当前明确的否定线索。 */
+    private List<FloorFocus> floorFocus(String text) {
+        List<FloorFocus> focus = new ArrayList<>();
+        if (Pattern.compile("家里.{0,5}大|房子.{0,5}大|大面积|大户型|全屋|(?<!\\d)(?:[1-9]\\d{2,})\\s*(?:平|㎡)")
+                .matcher(text)
+                .find()) focus.add(FloorFocus.LARGE_AREA);
+        if (Pattern.compile("宠物|猫毛|狗毛|养猫|养狗|有猫|有狗|毛发").matcher(text).find()
+                && !Pattern.compile("没有宠物|不养宠物|不用考虑毛发|不在意毛发")
+                        .matcher(text.substring(text.lastIndexOf('\n') + 1))
+                        .find()) focus.add(FloorFocus.PET_HAIR);
+        if (Pattern.compile("婴儿|宝宝|午睡|睡觉|静音|低噪|安静|噪音").matcher(text).find()
+                && !Pattern.compile("不用考虑噪音|不在意噪音")
+                        .matcher(text.substring(text.lastIndexOf('\n') + 1))
+                        .find()) focus.add(FloorFocus.QUIET);
+        return List.copyOf(focus);
     }
 
     /** 依据关键词表返回文字命中的商品分类。 */
@@ -274,7 +355,8 @@ public class RecommendationEngine {
                 var entry = fields.next();
                 String value = entry.getValue().asText("");
                 String combined = (entry.getKey() + ":" + value).toLowerCase(Locale.ROOT);
-                if (Pattern.compile("不支持|不具备|不含|不提供|未配备|无此|无避障|无集尘|^.*:(?:无|否|false|none|0)$")
+                if (Pattern.compile(
+                                "不支持|不具备|不含|不提供|未配备|无此|无避障|无集尘|无防缠绕|无断点续扫|无静音模式|无低噪模式|^.*:(?:无|否|false|none|0)$")
                         .matcher(combined)
                         .find()) continue;
                 if (FEATURES.getOrDefault(feature, List.of(feature)).stream()
@@ -295,6 +377,15 @@ public class RecommendationEngine {
                 && !(need.accessory() && "ACCESSORY".equals(product.type))) reasons.add("类别不符");
         if (need.category() != null && !need.accessory() && !"ROBOT".equals(product.type))
             reasons.add("当前需要主机而非配件");
+        if (need.outdoorTask() != OutdoorTask.UNSPECIFIED) {
+            String taskEvidence =
+                    Objects.toString(product.subtitle, "")
+                            + " "
+                            + Objects.toString(product.parametersJson, "");
+            String requiredTask = need.outdoorTask() == OutdoorTask.LAWN ? "割草|草坪" : "泳池|池底|池壁|水线";
+            if (!Pattern.compile(requiredTask).matcher(taskEvidence).find())
+                reasons.add("缺少对应的庭院任务证据");
+        }
         if (need.minEndurance() > 0
                 && (product.enduranceMinutes == null
                         || product.enduranceMinutes < need.minEndurance()))
@@ -347,6 +438,7 @@ public class RecommendationEngine {
                 score += 3;
                 evidence.add("目录售后说明：" + product.warranty);
             }
+            score += floorScore(product, need, longest, evidence);
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("product", product);
             row.put("rawScore", score);
@@ -364,5 +456,37 @@ public class RecommendationEngine {
                         .reversed()
                         .thenComparingLong(row -> ((Product) row.get("product")).id));
         return rows;
+    }
+
+    /** 只凭实际参数给场景偏好加分，未知指标不会替商品背书。 */
+    private double floorScore(Product product, Need need, int longest, List<String> reasons) {
+        double score = 0;
+        if (need.floorFocus().contains(FloorFocus.PET_HAIR)) {
+            String antiTangle = evidence(product, "防缠绕");
+            if (antiTangle != null) {
+                score += 18;
+                reasons.add("宠物毛发相关参数：" + antiTangle + "；不代表实测清洁效果");
+            }
+        }
+        if (need.floorFocus().contains(FloorFocus.LARGE_AREA)) {
+            String resume = evidence(product, "断点续扫");
+            if (resume != null) {
+                score += 14;
+                reasons.add("全屋清洁相关参数：" + resume);
+            }
+            if (longest > 0 && product.enduranceMinutes != null && product.enduranceMinutes > 0) {
+                score += 12.0 * product.enduranceMinutes / longest;
+                reasons.add("目录续航 " + product.enduranceMinutes + " 分钟；不能换算为可清扫面积");
+            }
+        }
+        if (need.floorFocus().contains(FloorFocus.QUIET)) {
+            String quiet = evidence(product, "静音模式");
+            if (quiet == null) quiet = evidence(product, "低噪模式");
+            if (quiet != null) {
+                score += 8;
+                reasons.add("安静使用相关参数：" + quiet + "；不代表实际运行噪声");
+            }
+        }
+        return score;
     }
 }

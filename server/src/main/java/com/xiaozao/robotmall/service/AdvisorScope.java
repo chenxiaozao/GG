@@ -22,7 +22,7 @@ public final class AdvisorScope {
     /** 预设选购词用于匹配范围，这不是开放领域的学科分类器。 */
     private static final Pattern DOMAIN =
             Pattern.compile(
-                    "机器人|无人机|扫地|扫拖|擦窗|配件|电池|预算|选购|推荐商品|帮我选|适配|续航|型号|价格|多少钱|地板|窗户|割草|航拍|毛发|防缠绕|避障|集尘|go2|roborock|大疆",
+                    "机器人|无人机|扫地|扫拖|擦窗|配件|电池|预算|选购|推荐商品|帮我选|适配|续航|型号|价格|多少钱|地板|窗户|割草|草坪|泳池|池壁|池底|水线|航拍|毛发|防缠绕|避障|集尘|go2|roborock|大疆",
                     Pattern.CASE_INSENSITIVE);
 
     /** 按词语、句式及历史决定本地回应；无本地响应才继续选购流程。 */
@@ -80,6 +80,12 @@ public final class AdvisorScope {
                                                         .find());
         if (text.length() <= 80 && followup && (relevantHistory || hasCandidates)) return null;
         if (relevantHistory && text.matches("\\d{2,7}\\s*(?:元|块钱?)?")) return null;
+        if (relevantHistory
+                && text.length() <= 80
+                && Pattern.compile(
+                                "^(?:\\d+(?:\\.\\d+)?\\s*(?:平方米|平米|平方|㎡|平)|主要是(?:瓷砖|木地板|地毯)|全是(?:瓷砖|木地板|地毯)|有框|无框|有地毯|没地毯|硬地板|图形化入门|学Python|只清池底|需要清水线|同一层)")
+                        .matcher(text)
+                        .find()) return null;
         return BOUNDARY;
     }
 }

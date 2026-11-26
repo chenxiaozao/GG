@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { resourceUrl } from "../resourceUrl";
 import ProductImage from "../components/ProductImage.vue";
-import { nextTick, onMounted, reactive, ref, watch } from "vue";
+import { nextTick, onMounted, reactive, ref, shallowRef, watch } from "vue";
 import api from "../api";
 import AiAnswer from "../components/AiAnswer.vue";
 import UiIcon from "../components/UiIcon.vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 const router = useRouter();
+const route = useRoute();
 
 const form = reactive({
   budget: 5000,
@@ -37,14 +38,39 @@ async function refreshQuota() {
 const chatRegion = ref<HTMLElement | null>(null);
 const chatInput = ref("");
 const contextProducts = ref<any[]>([]);
-const contextIds = ref<number[]>([]);
+const contextIds = shallowRef<number[]>([]);
 const contextError = ref("");
 /** 清除从商品详情或选购计划带入的候选范围。 */
-function clearContext() {
-  contextIds.value = [];
+async function clearContext() {
+  if (chatLoading.value || historyLoading.value) return;
+  if (activeThread.value && activeThread.value !== "legacy") {
+    historyLoading.value = true;
+    try {
+      await api.delete(`/advisor/threads/${activeThread.value}/context`);
+    } catch {
+      contextError.value = "没能清除本会话的候选，请重试。";
+      return;
+    } finally {
+      historyLoading.value = false;
+    }
+  }
+  setCandidates([]);
+}
+
+/** 恢复当前会话的候选范围；标题和消息独立加载。 */
+function setCandidates(ids: number[]) {
+  contextIds.value = ids;
   contextProducts.value = [];
   contextError.value = "";
-  sessionStorage.removeItem("robotmall-advisor-context");
+  if (!ids.length) return;
+  void Promise.all(ids.map((id) => api.get(`/products/${id}`)))
+    .then((products) => {
+      if (contextIds.value === ids) contextProducts.value = products;
+    })
+    .catch(() => {
+      if (contextIds.value === ids)
+        contextError.value = "部分候选商品无法读取，可以清除候选后继续咨询。";
+    });
 }
 /** 把对话需求与候选商品保存为本地选购计划草稿。 */
 function savePlanDraft() {
@@ -71,6 +97,10 @@ const historyLoading = ref(false);
 const historyNotice = ref("");
 const replyProvider = ref("");
 const previousQuestion = ref("");
+type AdvisorThread = { id: string; title: string; updatedAt: string };
+const threads = ref<AdvisorThread[]>([]);
+const activeThread = ref<string | null>(null);
+const threadDrafts = new Map<string, string>();
 const advisorMode = ref<"chat" | "form">("chat");
 const prompts = [
   "家里有猫，90 平米，预算 5000 元，想选省心的扫拖机器人",
@@ -112,16 +142,47 @@ const chatMessages = ref<
 ]);
 const welcomeMessage = chatMessages.value[0]!;
 
-/** 从账号读取最近咨询；历史只显示文本，不把旧价格当成实时商品卡。 */
-async function loadChatHistory() {
+/** 把选中的会话写进路由，刷新页面后仍能打开它。 */
+function syncThreadAddress(id: string | null) {
+  const query = { ...route.query };
+  if (id) query.chat = id;
+  else delete query.chat;
+  void router.replace({ query });
+}
+
+/** 只重置当前画面的临时内容，不清空账号中的旧对话。 */
+function replaceChat(
+  id: string | null,
+  messages: typeof chatMessages.value,
+  ids: number[],
+) {
+  if (activeThread.value) threadDrafts.set(activeThread.value, chatInput.value);
+  activeThread.value = id;
+  chatMessages.value = messages.length ? messages : [welcomeMessage];
+  chatInput.value = id ? threadDrafts.get(id) || "" : "";
+  previousQuestion.value = "";
+  replyProvider.value = "";
+  aiConnected.value = false;
+  setCandidates(ids);
+  syncThreadAddress(id);
+}
+
+/** 从账号读取会话列表，优先恢复当前链接指向的对话。 */
+async function loadChatHistory(restore = true) {
   if (!localStorage.getItem("token")) return;
   historyLoading.value = true;
   historyNotice.value = "";
   try {
-    const messages = (await api.get(
-      "/advisor/history",
-    )) as typeof chatMessages.value;
-    chatMessages.value = messages.length ? messages : [welcomeMessage];
+    threads.value = (await api.get("/advisor/threads")) as AdvisorThread[];
+    if (restore) {
+      const requested =
+        typeof route.query.chat === "string" ? route.query.chat : "";
+      const next =
+        threads.value.find((thread) => thread.id === requested) ||
+        threads.value[0];
+      if (next) await openThread(next.id, true);
+      else replaceChat(null, [], []);
+    }
   } catch {
     historyNotice.value = "咨询记录暂时无法读取，可重试。";
   } finally {
@@ -129,20 +190,51 @@ async function loadChatHistory() {
   }
 }
 
-/** 删除账号的咨询记录，不删除浏览历史或画像。 */
+/** 打开一个窗口，只加载它自己的消息和候选。 */
+async function openThread(id: string, nested = false) {
+  if (chatLoading.value || (!nested && historyLoading.value)) return;
+  if (!nested) {
+    historyLoading.value = true;
+    historyNotice.value = "";
+  }
+  try {
+    const result = (await api.get(`/advisor/threads/${id}`)) as {
+      messages: typeof chatMessages.value;
+      contextProductIds: number[];
+    };
+    replaceChat(id, result.messages, result.contextProductIds);
+  } catch {
+    historyNotice.value = "这个对话暂时打不开，可能已在另一台设备删除。";
+  } finally {
+    if (!nested) historyLoading.value = false;
+  }
+}
+
+/** 开始新的独立对话；第一次发送时才建立账号记录。 */
+function startNewThread() {
+  if (chatLoading.value || historyLoading.value) return;
+  historyNotice.value = "";
+  replaceChat(null, [], []);
+  usePrompt("");
+}
+
+/** 删除选中的会话，不删除其他对话、浏览历史或画像。 */
 async function clearChatHistory() {
-  if (!window.confirm("清空本账号的选购咨询？商品浏览记录和偏好不受影响。"))
+  const id = activeThread.value;
+  if (
+    !id ||
+    !window.confirm("删除当前对话？其他对话、浏览记录和偏好不受影响。")
+  )
     return;
   historyLoading.value = true;
   historyNotice.value = "";
   try {
-    await api.delete("/advisor/history");
-    chatMessages.value = [welcomeMessage];
-    replyProvider.value = "";
-    previousQuestion.value = "";
-    aiConnected.value = false;
+    await api.delete(`/advisor/threads/${id}`);
+    replaceChat(null, [], []);
+    threadDrafts.delete(id);
+    threads.value = threads.value.filter((thread) => thread.id !== id);
   } catch {
-    historyNotice.value = "咨询记录未清空，请重试。";
+    historyNotice.value = "当前对话未删除，请重试。";
   } finally {
     historyLoading.value = false;
   }
@@ -189,27 +281,34 @@ function formatPrice(value: unknown) {
     maximumFractionDigits: 2,
   });
 }
-/** 把原样的问题、近期消息和候选编号发给 Java；不在浏览器调用模型或判断咨询领域。 */
+/** 只发送原始问题和当前会话编号；Java 从该会话读取上下文。 */
 async function sendChat(recall?: string) {
   const question = recall || chatInput.value.trim();
   if (!question || chatLoading.value || historyLoading.value) return;
   if (!localStorage.getItem("token")) {
     sessionStorage.setItem("robotmall-advisor-entry", question);
+    sessionStorage.setItem(
+      "robotmall-advisor-context",
+      JSON.stringify(contextIds.value),
+    );
     await router.push({ path: "/login", query: { redirect: "/advisor" } });
     return;
   }
-  /** 中文消息保持原样，只组织为带角色与内容的请求字段。 */
-  const history = chatMessages.value
-    .filter((item) => !item.error)
-    .slice(-6)
-    .map(({ role, content }) => ({ role, content }));
   chatMessages.value.push({ role: "user", content: question });
   if (!recall) chatInput.value = "";
   chatLoading.value = true;
   try {
+    if (!activeThread.value) {
+      const thread = (await api.post("/advisor/threads", {
+        contextProductIds: contextIds.value,
+      })) as AdvisorThread;
+      activeThread.value = thread.id;
+      threads.value = [thread, ...threads.value];
+      syncThreadAddress(thread.id);
+    }
     const response: any = await api.post(
       "/advisor/chat",
-      { question, history, contextProductIds: contextIds.value },
+      { question, threadId: activeThread.value },
       { timeout: 45000 },
     );
     aiConnected.value = response.provider === "DeepSeek";
@@ -222,6 +321,7 @@ async function sendChat(recall?: string) {
       evidence: response.evidence || [],
       notice: response.notice || "",
     });
+    await loadChatHistory(false);
   } catch (e: any) {
     aiConnected.value = false;
     chatInput.value = question;
@@ -249,28 +349,28 @@ watch(
   },
 );
 onMounted(async () => {
-  await loadChatHistory();
+  const entry = sessionStorage.getItem("robotmall-advisor-entry");
+  const rawContext = sessionStorage.getItem("robotmall-advisor-context");
+  sessionStorage.removeItem("robotmall-advisor-entry");
+  sessionStorage.removeItem("robotmall-advisor-context");
+  await loadChatHistory(!entry && !rawContext);
   try {
-    const ids = JSON.parse(
-      sessionStorage.getItem("robotmall-advisor-context") || "[]",
-    );
+    const ids = JSON.parse(rawContext || "[]");
     if (Array.isArray(ids)) {
-      contextIds.value = [
-        ...new Set(ids.filter((id) => Number.isSafeInteger(id) && id > 0)),
-      ].slice(0, 4) as number[];
-      contextProducts.value = await Promise.all(
-        contextIds.value.map((id) => api.get(`/products/${id}`)),
-      );
+      if (rawContext)
+        setCandidates(
+          [
+            ...new Set(ids.filter((id) => Number.isSafeInteger(id) && id > 0)),
+          ].slice(0, 4) as number[],
+        );
     }
   } catch {
     contextError.value =
       "候选商品读取失败，请返回原页面重新选择，或清除候选后咨询。";
   }
   await refreshQuota();
-  const entry = sessionStorage.getItem("robotmall-advisor-entry");
   if (entry) {
     chatInput.value = entry;
-    sessionStorage.removeItem("robotmall-advisor-entry");
     await nextTick();
     document
       .querySelector<HTMLTextAreaElement>(".advisor-chat-input textarea")
@@ -484,161 +584,198 @@ onMounted(async () => {
               : "规则推荐可用"
         }}</b>
       </div>
-      <div class="advisor-chat card">
-        <div
-          v-if="!historyLoading && chatMessages.some((m) => m.role === 'user')"
-          class="advisor-chat-note"
-        >
+      <div class="advisor-conversation-layout">
+        <aside class="advisor-thread-sidebar card" aria-label="选购对话列表">
           <button
-            class="btn secondary"
-            :disabled="chatLoading"
-            @click="sendChat('我上次问了什么')"
-          >
-            找回上次咨询
-          </button>
-          <button
-            class="btn secondary"
-            :disabled="chatLoading"
-            @click="clearChatHistory"
-          >
-            清空咨询记录
-          </button>
-        </div>
-        <p v-if="historyLoading" class="advisor-chat-note" role="status">
-          正在处理咨询记录…
-        </p>
-        <p v-if="historyNotice" class="advisor-chat-note" role="status">
-          {{ historyNotice }}
-          <button
-            class="btn secondary"
-            :disabled="chatLoading"
-            @click="loadChatHistory"
-          >
-            重新读取
-          </button>
-        </p>
-        <p v-if="replyProvider" class="advisor-chat-note">
-          本轮来源：{{ replyProvider }}
-          <button
-            v-if="previousQuestion"
-            class="btn secondary"
-            :disabled="chatLoading"
-            @click="usePrompt(previousQuestion)"
-          >
-            把上次问题带回输入框
-          </button>
-        </p>
-        <div
-          ref="chatRegion"
-          class="advisor-chat-messages"
-          role="log"
-          aria-label="AI 选购对话"
-          aria-live="polite"
-        >
-          <article
-            v-for="(item, index) in chatMessages"
-            :key="index"
-            :class="item.role"
-          >
-            <b>{{ item.role === "user" ? "我" : "小造 AI" }}</b
-            ><AiAnswer
-              v-if="item.role === 'assistant'"
-              :content="item.content"
-            />
-            <p v-else>{{ item.content }}</p>
-            <p v-if="item.notice" class="ai-evidence-notice">
-              {{ item.notice }}
-            </p>
-            <details v-if="item.evidence?.length" class="ai-evidence">
-              <summary>查看推荐参数依据</summary>
-              <div v-for="row in item.evidence" :key="row.product.id">
-                <b>{{ row.product.name }}</b>
-                <ul>
-                  <li v-for="reason in row.reasons" :key="reason">
-                    {{ reason }}
-                  </li>
-                </ul>
-              </div>
-            </details>
-            <button
-              v-if="item.error"
-              type="button"
-              class="ai-retry"
-              @click="retryQuestion"
-            >
-              修改问题后重试 →
-            </button>
-            <div v-if="item.products?.length" class="ai-product-list">
-              <router-link
-                v-for="product in item.products"
-                :key="product.id"
-                class="ai-product-card"
-                :to="`/product/${product.id}`"
-                ><ProductImage :product="product" /><span
-                  ><b>{{ product.name }}</b
-                  ><small
-                    >{{ product.brandName }} · {{ product.categoryName
-                    }}{{
-                      product.imageKind === "REFERENCE"
-                        ? " · 参考图"
-                        : product.imageKind === "ILLUSTRATION"
-                          ? " · 示意图"
-                          : ""
-                    }}</small
-                  ><strong>¥{{ formatPrice(product.price) }}</strong></span
-                ><i>→</i></router-link
-              >
-            </div>
-          </article>
-          <article v-if="chatLoading" class="assistant">
-            <b>小造 AI</b>
-            <p class="ai-thinking">
-              <span><i></i><i></i><i></i></span>正在整理选购建议，请稍等…
-            </p>
-          </article>
-        </div>
-        <div
-          v-if="chatMessages.length === 1"
-          class="advisor-prompts"
-          aria-label="试试这些问题"
-        >
-          <small>可以从这里开始</small
-          ><button
-            v-for="prompt in prompts"
-            :key="prompt"
+            class="btn advisor-new-thread"
             type="button"
-            @click="usePrompt(prompt)"
+            :disabled="chatLoading || historyLoading"
+            @click="startNewThread"
           >
-            {{ prompt }}<UiIcon name="arrow" :size="16" />
+            ＋ 新建对话
           </button>
+          <p class="advisor-thread-heading">历史对话</p>
+          <p v-if="!threads.length && !historyLoading" class="muted">
+            发出第一条咨询后，会话会保存在这里。
+          </p>
+          <ul v-else class="advisor-thread-list">
+            <li v-for="thread in threads" :key="thread.id">
+              <button
+                type="button"
+                :disabled="chatLoading || historyLoading"
+                :aria-current="thread.id === activeThread ? 'page' : undefined"
+                :title="thread.title"
+                @click="openThread(thread.id)"
+              >
+                {{ thread.title }}
+              </button>
+            </li>
+          </ul>
+        </aside>
+        <div class="advisor-chat card">
+          <header class="advisor-active-thread">
+            <h3>
+              {{
+                threads.find((thread) => thread.id === activeThread)?.title ||
+                "新对话"
+              }}
+            </h3>
+            <small class="muted">每个对话单独保存，不共享聊天上下文。</small>
+          </header>
+          <div v-if="!historyLoading && activeThread" class="advisor-chat-note">
+            <button
+              class="btn secondary"
+              :disabled="
+                chatLoading || !chatMessages.some((m) => m.role === 'user')
+              "
+              @click="sendChat('我上次问了什么')"
+            >
+              找回上次咨询
+            </button>
+            <button
+              class="btn secondary"
+              :disabled="chatLoading"
+              @click="clearChatHistory"
+            >
+              删除当前对话
+            </button>
+          </div>
+          <p v-if="historyLoading" class="advisor-chat-note" role="status">
+            正在处理咨询记录…
+          </p>
+          <p v-if="historyNotice" class="advisor-chat-note" role="status">
+            {{ historyNotice }}
+            <button
+              class="btn secondary"
+              :disabled="chatLoading"
+              @click="loadChatHistory()"
+            >
+              重新读取
+            </button>
+          </p>
+          <p v-if="replyProvider" class="advisor-chat-note">
+            本轮来源：{{ replyProvider }}
+            <button
+              v-if="previousQuestion"
+              class="btn secondary"
+              :disabled="chatLoading"
+              @click="usePrompt(previousQuestion)"
+            >
+              把上次问题带回输入框
+            </button>
+          </p>
+          <div
+            ref="chatRegion"
+            class="advisor-chat-messages"
+            role="log"
+            aria-label="AI 选购对话"
+            aria-live="polite"
+          >
+            <article
+              v-for="(item, index) in chatMessages"
+              :key="index"
+              :class="item.role"
+            >
+              <b>{{ item.role === "user" ? "我" : "小造 AI" }}</b
+              ><AiAnswer
+                v-if="item.role === 'assistant'"
+                :content="item.content"
+              />
+              <p v-else>{{ item.content }}</p>
+              <p v-if="item.notice" class="ai-evidence-notice">
+                {{ item.notice }}
+              </p>
+              <details v-if="item.evidence?.length" class="ai-evidence">
+                <summary>查看推荐参数依据</summary>
+                <div v-for="row in item.evidence" :key="row.product.id">
+                  <b>{{ row.product.name }}</b>
+                  <ul>
+                    <li v-for="reason in row.reasons" :key="reason">
+                      {{ reason }}
+                    </li>
+                  </ul>
+                </div>
+              </details>
+              <button
+                v-if="item.error"
+                type="button"
+                class="ai-retry"
+                @click="retryQuestion"
+              >
+                修改问题后重试 →
+              </button>
+              <div v-if="item.products?.length" class="ai-product-list">
+                <router-link
+                  v-for="product in item.products"
+                  :key="product.id"
+                  class="ai-product-card"
+                  :to="`/product/${product.id}`"
+                  ><ProductImage :product="product" /><span
+                    ><b>{{ product.name }}</b
+                    ><small
+                      >{{ product.brandName }} · {{ product.categoryName
+                      }}{{
+                        product.imageKind === "REFERENCE"
+                          ? " · 参考图"
+                          : product.imageKind === "ILLUSTRATION"
+                            ? " · 示意图"
+                            : ""
+                      }}</small
+                    ><strong>¥{{ formatPrice(product.price) }}</strong></span
+                  ><i>→</i></router-link
+                >
+              </div>
+            </article>
+            <article v-if="chatLoading" class="assistant">
+              <b>小造 AI</b>
+              <p class="ai-thinking">
+                <span><i></i><i></i><i></i></span>正在整理选购建议，请稍等…
+              </p>
+            </article>
+          </div>
+          <div
+            v-if="chatMessages.length === 1"
+            class="advisor-prompts"
+            aria-label="试试这些问题"
+          >
+            <small>可以从这里开始</small
+            ><button
+              v-for="prompt in prompts"
+              :key="prompt"
+              type="button"
+              @click="usePrompt(prompt)"
+            >
+              {{ prompt }}<UiIcon name="arrow" :size="16" />
+            </button>
+          </div>
+          <form class="advisor-chat-input" @submit.prevent="sendChat()">
+            <textarea
+              class="input"
+              rows="2"
+              maxlength="800"
+              v-model="chatInput"
+              aria-label="向 AI 描述选购需求"
+              @keydown.ctrl.enter.prevent="!$event.isComposing && sendChat()"
+              @keydown.meta.enter.prevent="!$event.isComposing && sendChat()"
+              placeholder="例如：90 平米、有猫、木地板为主，预算 5000 元，更在意毛发清理…"
+            ></textarea
+            ><button
+              class="btn"
+              :disabled="chatLoading || historyLoading || !chatInput.trim()"
+            >
+              {{ chatLoading ? "正在回答…" : "发送咨询"
+              }}<UiIcon name="arrow" :size="17" />
+            </button>
+          </form>
+          <p class="advisor-chat-note">
+            登录后可跨设备打开各个对话，每个对话保留最近 20
+            轮有效咨询。需要模型解释时才发送当前对话的必要上下文给
+            DeepSeek，请勿输入隐私。明确表达的选购偏好可在<router-link
+              to="/profile#preferences"
+              >我的选购偏好</router-link
+            >中纠正或删除。管理员可查看偏好摘要，不查看聊天正文。
+          </p>
         </div>
-        <form class="advisor-chat-input" @submit.prevent="sendChat()">
-          <textarea
-            class="input"
-            rows="2"
-            maxlength="800"
-            v-model="chatInput"
-            aria-label="向 AI 描述选购需求"
-            @keydown.ctrl.enter.prevent="!$event.isComposing && sendChat()"
-            @keydown.meta.enter.prevent="!$event.isComposing && sendChat()"
-            placeholder="例如：90 平米、有猫、木地板为主，预算 5000 元，更在意毛发清理…"
-          ></textarea
-          ><button
-            class="btn"
-            :disabled="chatLoading || historyLoading || !chatInput.trim()"
-          >
-            {{ chatLoading ? "正在回答…" : "发送咨询"
-            }}<UiIcon name="arrow" :size="17" />
-          </button>
-        </form>
-        <p class="advisor-chat-note">
-          登录后可跨设备找回最近 20
-          轮有效选购咨询，也可清空。需要模型解释时才发送必要上下文给
-          DeepSeek，请勿输入隐私。明确表达的选购偏好可在<router-link
-            to="/profile#preferences"
-            >我的选购偏好</router-link
-          >中纠正或删除。管理员可查看偏好摘要，不查看聊天正文。
-        </p>
       </div>
     </section>
 
@@ -699,3 +836,82 @@ onMounted(async () => {
     </section>
   </div>
 </template>
+
+<style scoped>
+.advisor-conversation-layout {
+  display: grid;
+  grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.advisor-thread-sidebar {
+  min-width: 0;
+  padding: 1rem;
+}
+
+.advisor-new-thread {
+  width: 100%;
+}
+
+.advisor-thread-heading {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.advisor-thread-list {
+  display: grid;
+  gap: 0.25rem;
+  max-height: 29rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.advisor-thread-list button {
+  display: block;
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.advisor-thread-list button:hover,
+.advisor-thread-list button[aria-current="page"] {
+  border-color: currentColor;
+}
+
+.advisor-active-thread {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--line, #dce1e4);
+}
+
+.advisor-active-thread h3 {
+  margin: 0 0 0.2rem;
+}
+
+@media (max-width: 740px) {
+  .advisor-conversation-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .advisor-thread-list {
+    display: flex;
+    overflow: auto;
+  }
+
+  .advisor-thread-list li {
+    flex: 0 0 min(13rem, 72vw);
+  }
+}
+</style>

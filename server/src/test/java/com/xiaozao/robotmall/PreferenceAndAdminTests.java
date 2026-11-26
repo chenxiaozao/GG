@@ -224,6 +224,103 @@ class PreferenceAndAdminTests {
         assertTrue(preferences.existsById(buyer.id));
     }
 
+    /** 复现用户的两轮咨询：不限预算后改问面积，补充面积后不读回旧上限。 */
+    @Test
+    void unlimitedBudgetUsesFloorContextAndDoesNotRepeatBudgetQuestion() throws Exception {
+        var buyer = auth.register("floorcontextbuyer", "FloorScenario123!", "场景测试");
+        String token = login(buyer.username, "FloorScenario123!");
+        String path = "/api/advisor/chat";
+        call("POST", path, token, Map.of("question", "我是想买地面清洁类机器人，预算5000元"), 200);
+        var response = call("POST", path, token, Map.of("question", "预算不限 但是家里比较大 而且有宠物和婴儿"), 200);
+        String answer = response.path("answer").asText();
+        assertEquals(
+                "UNLIMITED", response.path("validatedRequirements").path("budgetStatus").asText());
+        assertTrue(response.path("validatedRequirements").path("budget").isNull());
+        assertTrue(answer.contains("预算不限") && answer.contains("防缠绕") && answer.contains("平方米"));
+        assertFalse(answer.contains("预算最高是多少"));
+        assertFalse(response.path("products").isEmpty());
+        assertTrue(response.path("evidence").toString().contains("宠物毛发相关参数"));
+        var followup = call("POST", path, token, Map.of("question", "150平，全是瓷砖"), 200);
+        assertEquals(
+                "UNLIMITED", followup.path("validatedRequirements").path("budgetStatus").asText());
+        assertFalse(followup.path("answer").asText().contains("大约多少平方米"));
+        assertFalse(followup.path("answer").asText().contains("还是也有地毯"));
+    }
+
+    /** 验证同一分类里的泳池设备与割草设备不会一起推荐。 */
+    @Test
+    void poolAndLawnRecommendationsAreNotMixed() throws Exception {
+        var buyer = auth.register("poolscenario", "PoolScenario123!", "泳池测试");
+        String token = login(buyer.username, "PoolScenario123!");
+        var response =
+                call("POST", "/api/advisor/chat", token, Map.of("question", "预算不限，想买泳池机器人"), 200);
+        assertEquals("POOL", response.path("validatedRequirements").path("outdoorTask").asText());
+        assertFalse(response.path("products").isEmpty());
+        for (var product : response.path("products"))
+            assertTrue(product.path("subtitle").asText().contains("泳池"), product.toString());
+        assertTrue(response.path("answer").asText().contains("池壁"));
+    }
+
+    /** 验证两条会话隔离预算、候选和正文，且旧版咨询仍可查看。 */
+    @Test
+    void advisorThreadsIsolateContextAndKeepLegacyConversation() throws Exception {
+        String password = "ThreadScenario123!";
+        var user = auth.register("threadbuyer", password, "多会话测试");
+        var other = auth.register("threadother", password, "另一个账号");
+        String token = login(user.username, password);
+        String otherToken = login(other.username, password);
+        String chat = "/api/advisor/chat", threads = "/api/advisor/threads";
+        call("POST", chat, token, Map.of("question", "之前想选航拍无人机"), 200);
+        assertEquals("legacy", call("GET", threads, token, null, 200).get(0).path("id").asText());
+        var a = call("POST", threads, token, Map.of(), 200).path("id").asText();
+        var b =
+                call("POST", threads, token, Map.of("contextProductIds", List.of(1)), 200)
+                        .path("id")
+                        .asText();
+        call("POST", chat, token, Map.of("threadId", a, "question", "想买编程机器人，预算3000元"), 200);
+        var reply =
+                call(
+                        "POST",
+                        chat,
+                        token,
+                        Map.of(
+                                "threadId",
+                                b,
+                                "question",
+                                "想买地面清洁类机器人",
+                                "history",
+                                List.of(Map.of("role", "user", "content", "编程机器人预算3000元"))),
+                        200);
+        assertEquals(
+                "UNSPECIFIED", reply.path("validatedRequirements").path("budgetStatus").asText());
+        assertEquals(1, reply.path("products").size());
+        assertEquals(1L, reply.path("products").get(0).path("id").asLong());
+        assertEquals(
+                List.of(1),
+                mapper.convertValue(
+                        call("GET", threads + "/" + b, token, null, 200).path("contextProductIds"),
+                        List.class));
+        assertTrue(call("GET", threads + "/" + a, token, null, 200).toString().contains("编程机器人"));
+        assertFalse(call("GET", threads + "/" + a, token, null, 200).toString().contains("地面清洁"));
+        assertTrue(
+                call("POST", chat, token, Map.of("threadId", b, "question", "我上次问了什么"), 200)
+                        .path("previousQuestion")
+                        .asText()
+                        .contains("地面清洁"));
+        call("GET", threads + "/" + a, otherToken, null, 404);
+        call("POST", chat, otherToken, Map.of("threadId", a, "question", "我上次问了什么"), 404);
+        call("DELETE", threads + "/" + a, otherToken, null, 404);
+        call("DELETE", threads + "/" + b + "/context", token, null, 200);
+        assertTrue(
+                call("GET", threads + "/" + b, token, null, 200)
+                        .path("contextProductIds")
+                        .isEmpty());
+        call("DELETE", threads + "/" + a, token, null, 200);
+        call("GET", threads + "/" + a, token, null, 404);
+        assertEquals(2, call("GET", threads + "/" + b, token, null, 200).path("messages").size());
+        assertEquals(2, call("GET", threads + "/legacy", token, null, 200).path("messages").size());
+    }
+
     /** 验证重置需二次鉴权且手机号未自动验证。 */
     @Test
     void adminResetRequiresReauthenticationAndNeverVerifiesPhone() throws Exception {

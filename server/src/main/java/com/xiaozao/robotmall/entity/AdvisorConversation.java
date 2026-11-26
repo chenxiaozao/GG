@@ -8,6 +8,6 @@ public class AdvisorConversation {
     @Id public Long userId;
 
     @Lob
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "MEDIUMTEXT")
     public String messagesJson = "[]";
 }
